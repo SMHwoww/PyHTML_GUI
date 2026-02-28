@@ -1,0 +1,44 @@
+{
+  "name": "headline",
+  "display_name": "标题",
+  "description": "报纸标题组件",
+  "version": "1.0.0",
+  "fields": [
+    {
+      "name": "text",
+      "type": "string",
+      "label": "标题文本",
+      "default": "这是一个大标题",
+      "placeholder": "请输入标题"
+    },
+    {
+      "name": "level",
+      "type": "select",
+      "label": "标题级别",
+      "default": "h1",
+      "options": [
+        {"value": "h1", "label": "一级标题 (最大)"},
+        {"value": "h2", "label": "二级标题"},
+        {"value": "h3", "label": "三级标题"},
+        {"value": "h4", "label": "四级标题"}
+      ]
+    },
+    {
+      "name": "align",
+      "type": "select",
+      "label": "对齐方式",
+      "default": "center",
+      "options": [
+        {"value": "left", "label": "左对齐"},
+        {"value": "center", "label": "居中"},
+        {"value": "right", "label": "右对齐"}
+      ]
+    },
+    {
+      "name": "color",
+      "type": "color",
+      "label": "标题颜色",
+      "default": "#333333"
+    }
+  ]
+}

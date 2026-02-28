@@ -1,0 +1,48 @@
+{
+  "name": "marquee",
+  "display_name": "走马灯",
+  "description": "一个滚动文字组件",
+  "version": "1.0.0",
+  "fields": [
+    {
+      "name": "text",
+      "type": "string",
+      "label": "滚动文本",
+      "default": "这是一段滚动文字",
+      "placeholder": "请输入滚动文本"
+    },
+    {
+      "name": "speed",
+      "type": "number",
+      "label": "滚动速度",
+      "default": 5,
+      "min": 1,
+      "max": 20,
+      "step": 1
+    },
+    {
+      "name": "direction",
+      "type": "select",
+      "label": "滚动方向",
+      "default": "left",
+      "options": [
+        {"value": "left", "label": "向左"},
+        {"value": "right", "label": "向右"},
+        {"value": "up", "label": "向上"},
+        {"value": "down", "label": "向下"}
+      ]
+    },
+    {
+      "name": "color",
+      "type": "color",
+      "label": "文字颜色",
+      "default": "#000000"
+    },
+    {
+      "name": "bg_color",
+      "type": "color",
+      "label": "背景颜色",
+      "default": "#f0f0f0"
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+.marquee-component {
+  padding: 15px;
+  background-color: {{ bg_color }};
+  border-radius: 4px;
+  margin: 10px 0;
+}
+
+.marquee-component marquee {
+  font-size: 18px;
+  font-weight: bold;
+}

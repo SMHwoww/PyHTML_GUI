@@ -1,0 +1,25 @@
+.headline-component {
+  font-family: "Microsoft YaHei", "SimHei", sans-serif;
+  margin: 20px 0;
+  line-height: 1.4;
+}
+
+h1.headline-component {
+  font-size: 36px;
+  font-weight: bold;
+}
+
+h2.headline-component {
+  font-size: 28px;
+  font-weight: bold;
+}
+
+h3.headline-component {
+  font-size: 22px;
+  font-weight: 600;
+}
+
+h4.headline-component {
+  font-size: 18px;
+  font-weight: 600;
+}
