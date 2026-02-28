@@ -1,0 +1,47 @@
+{
+  "name": "quote",
+  "display_name": "引用",
+  "description": "引用组件",
+  "version": "1.0.0",
+  "fields": [
+    {
+      "name": "text",
+      "type": "textarea",
+      "label": "引用文本",
+      "default": "这是一段引用的文字。",
+      "rows": 4
+    },
+    {
+      "name": "author",
+      "type": "string",
+      "label": "作者",
+      "default": "佚名",
+      "placeholder": "请输入作者名"
+    },
+    {
+      "name": "text_color",
+      "type": "color",
+      "label": "文字颜色",
+      "default": "#666666"
+    },
+    {
+      "name": "bg_color",
+      "type": "color",
+      "label": "背景颜色",
+      "default": "#f9f9f9"
+    },
+    {
+      "name": "border_color",
+      "type": "color",
+      "label": "边框颜色",
+      "default": "#007bff"
+    },
+    {
+      "name": "font_family",
+      "type": "font",
+      "label": "字体",
+      "default": "SimSun",
+      "default_size": 16
+    }
+  ]
+}

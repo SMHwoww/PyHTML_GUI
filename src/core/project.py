@@ -10,6 +10,15 @@ class Project:
         self.title = name
         self.components: List[Component] = []
         self.file_path: Optional[str] = None
+        self.head_config = {
+            'lang': 'zh-CN',
+            'meta_tags': [
+                {'name': 'charset', 'content': 'UTF-8'},
+                {'name': 'viewport', 'content': 'width=device-width, initial-scale=1.0'}
+            ],
+            'links': [],
+            'scripts': []
+        }
     
     def add_component(self, component: Component, index: Optional[int] = None):
         if index is None:
@@ -36,6 +45,7 @@ class Project:
         return {
             'name': self.name,
             'title': self.title,
+            'head_config': self.head_config,
             'components': [comp.to_dict() for comp in self.components]
         }
     
@@ -43,6 +53,15 @@ class Project:
     def from_dict(cls, data: Dict[str, Any]) -> 'Project':
         project = cls(data.get('name', 'Untitled'))
         project.title = data.get('title', project.name)
+        project.head_config = data.get('head_config', {
+            'lang': 'zh-CN',
+            'meta_tags': [
+                {'name': 'charset', 'content': 'UTF-8'},
+                {'name': 'viewport', 'content': 'width=device-width, initial-scale=1.0'}
+            ],
+            'links': [],
+            'scripts': []
+        })
         for comp_data in data.get('components', []):
             try:
                 component = Component.from_dict(comp_data)

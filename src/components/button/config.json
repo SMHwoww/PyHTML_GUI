@@ -1,0 +1,52 @@
+{
+  "name": "button",
+  "display_name": "按钮",
+  "description": "按钮组件",
+  "version": "1.0.0",
+  "fields": [
+    {
+      "name": "text",
+      "type": "string",
+      "label": "按钮文本",
+      "default": "点击我",
+      "placeholder": "请输入按钮文本"
+    },
+    {
+      "name": "color",
+      "type": "color",
+      "label": "文字颜色",
+      "default": "#ffffff"
+    },
+    {
+      "name": "bg_color",
+      "type": "color",
+      "label": "背景颜色",
+      "default": "#007bff"
+    },
+    {
+      "name": "link",
+      "type": "string",
+      "label": "链接",
+      "default": "#",
+      "placeholder": "请输入链接URL"
+    },
+    {
+      "name": "size",
+      "type": "select",
+      "label": "大小",
+      "default": "medium",
+      "options": [
+        {"value": "small", "label": "小"},
+        {"value": "medium", "label": "中"},
+        {"value": "large", "label": "大"}
+      ]
+    },
+    {
+      "name": "font_family",
+      "type": "font",
+      "label": "字体",
+      "default": "Arial",
+      "default_size": 16
+    }
+  ]
+}

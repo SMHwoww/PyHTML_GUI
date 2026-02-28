@@ -39,6 +39,13 @@
       "type": "color",
       "label": "标题颜色",
       "default": "#333333"
+    },
+    {
+      "name": "font_family",
+      "type": "font",
+      "label": "字体",
+      "default": "SimHei",
+      "default_size": 24
     }
   ]
 }

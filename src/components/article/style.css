@@ -1,0 +1,27 @@
+.article-component {
+  padding: 20px;
+  margin: 10px 0;
+  border-radius: 4px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.article-title {
+  margin-top: 0;
+  margin-bottom: 10px;
+  font-size: 24px;
+  font-weight: bold;
+}
+
+.article-meta {
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 15px;
+}
+
+.article-author {
+  margin-right: 20px;
+}
+
+.article-content {
+  line-height: 1.8;
+}

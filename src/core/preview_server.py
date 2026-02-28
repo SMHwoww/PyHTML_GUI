@@ -9,8 +9,8 @@ from .project import Project
 
 
 class PreviewHandler(http.server.SimpleHTTPRequestHandler):
-    def __init__(self, html_content: str, *args, **kwargs):
-        self.html_content = html_content
+    def __init__(self, preview_server, *args, **kwargs):
+        self.preview_server = preview_server
         super().__init__(*args, **kwargs)
     
     def do_GET(self):
@@ -18,7 +18,7 @@ class PreviewHandler(http.server.SimpleHTTPRequestHandler):
             self.send_response(200)
             self.send_header('Content-type', 'text/html; charset=utf-8')
             self.end_headers()
-            self.wfile.write(self.html_content.encode('utf-8'))
+            self.wfile.write(self.preview_server.current_html.encode('utf-8'))
         else:
             self.send_response(404)
             self.end_headers()
@@ -36,11 +36,14 @@ class PreviewServer:
         self.current_html: str = ''
     
     def update_html(self, project: Project):
-        self.current_html = self.html_generator.generate_html(project.components, project.title)
+        self.current_html = self.html_generator.generate_html(project.components, project.title, project.head_config)
     
     def _start_server(self):
-        handler = lambda *args, **kwargs: PreviewHandler(self.current_html, *args, **kwargs)
-        self.server = socketserver.TCPServer(('', self.port), handler)
+        # 创建一个闭包来捕获preview_server实例
+        preview_server = self
+        def handler_factory(*args, **kwargs):
+            return PreviewHandler(preview_server, *args, **kwargs)
+        self.server = socketserver.TCPServer(('', self.port), handler_factory)
         self.server.serve_forever()
     
     def start(self, project: Project):

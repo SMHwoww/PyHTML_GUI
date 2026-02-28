@@ -1,0 +1,55 @@
+{
+  "name": "article",
+  "display_name": "文章",
+  "description": "报纸文章组件",
+  "version": "1.0.0",
+  "fields": [
+    {
+      "name": "title",
+      "type": "string",
+      "label": "文章标题",
+      "default": "这是一篇文章标题",
+      "placeholder": "请输入文章标题"
+    },
+    {
+      "name": "content",
+      "type": "textarea",
+      "label": "文章内容",
+      "default": "这是文章的正文内容。\n\n可以换行输入多行文本。",
+      "rows": 8
+    },
+    {
+      "name": "author",
+      "type": "string",
+      "label": "作者",
+      "default": "佚名",
+      "placeholder": "请输入作者名"
+    },
+    {
+      "name": "date",
+      "type": "string",
+      "label": "日期",
+      "default": "2026年2月28日",
+      "placeholder": "请输入日期"
+    },
+    {
+      "name": "text_color",
+      "type": "color",
+      "label": "文字颜色",
+      "default": "#333333"
+    },
+    {
+      "name": "bg_color",
+      "type": "color",
+      "label": "背景颜色",
+      "default": "#ffffff"
+    },
+    {
+      "name": "font_family",
+      "type": "font",
+      "label": "字体",
+      "default": "SimSun",
+      "default_size": 16
+    }
+  ]
+}

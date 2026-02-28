@@ -1,0 +1,35 @@
+{
+  "name": "divider",
+  "display_name": "分割线",
+  "description": "分割线组件",
+  "version": "1.0.0",
+  "fields": [
+    {
+      "name": "color",
+      "type": "color",
+      "label": "颜色",
+      "default": "#e0e0e0"
+    },
+    {
+      "name": "height",
+      "type": "number",
+      "label": "高度（像素）",
+      "default": 2,
+      "min": 1,
+      "max": 20,
+      "step": 1
+    },
+    {
+      "name": "style",
+      "type": "select",
+      "label": "样式",
+      "default": "solid",
+      "options": [
+        {"value": "solid", "label": "实线"},
+        {"value": "dashed", "label": "虚线"},
+        {"value": "dotted", "label": "点线"},
+        {"value": "double", "label": "双线"}
+      ]
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+.image-component {
+  margin: 20px 0;
+}
+
+.image-component img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+}

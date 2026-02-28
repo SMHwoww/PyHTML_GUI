@@ -1,0 +1,51 @@
+{
+  "name": "image",
+  "display_name": "图片",
+  "description": "图片组件",
+  "version": "1.0.0",
+  "fields": [
+    {
+      "name": "src",
+      "type": "string",
+      "label": "图片URL",
+      "default": "https://via.placeholder.com/400x300",
+      "placeholder": "请输入图片URL"
+    },
+    {
+      "name": "alt",
+      "type": "string",
+      "label": "替代文本",
+      "default": "图片描述",
+      "placeholder": "请输入图片替代文本"
+    },
+    {
+      "name": "width",
+      "type": "number",
+      "label": "宽度（像素）",
+      "default": 400,
+      "min": 50,
+      "max": 1000,
+      "step": 10
+    },
+    {
+      "name": "height",
+      "type": "number",
+      "label": "高度（像素）",
+      "default": 300,
+      "min": 50,
+      "max": 1000,
+      "step": 10
+    },
+    {
+      "name": "align",
+      "type": "select",
+      "label": "对齐方式",
+      "default": "center",
+      "options": [
+        {"value": "left", "label": "左对齐"},
+        {"value": "center", "label": "居中"},
+        {"value": "right", "label": "右对齐"}
+      ]
+    }
+  ]
+}

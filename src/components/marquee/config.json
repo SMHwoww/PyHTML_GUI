@@ -43,6 +43,13 @@
       "type": "color",
       "label": "背景颜色",
       "default": "#f0f0f0"
+    },
+    {
+      "name": "font_family",
+      "type": "font",
+      "label": "字体",
+      "default": "SimSun",
+      "default_size": 16
     }
   ]
 }

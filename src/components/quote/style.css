@@ -1,0 +1,19 @@
+.quote-component {
+  margin: 20px 0;
+  padding: 20px;
+  border-left: 4px solid;
+  border-radius: 0 4px 4px 0;
+}
+
+.quote-text {
+  margin: 0 0 10px 0;
+  font-size: 18px;
+  font-style: italic;
+  line-height: 1.6;
+}
+
+.quote-author {
+  font-size: 14px;
+  color: #888;
+  text-align: right;
+}
