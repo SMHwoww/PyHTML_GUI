@@ -1,0 +1,44 @@
+{
+  "name": "list",
+  "display_name": "列表",
+  "category": "布局",
+  "fields": [
+    {
+      "name": "items",
+      "type": "textarea",
+      "label": "列表项",
+      "default": "项目一\n项目二\n项目三\n项目四",
+      "placeholder": "每行一个列表项"
+    },
+    {
+      "name": "text_color",
+      "type": "color",
+      "label": "文字颜色",
+      "default": "#333333"
+    },
+    {
+      "name": "font",
+      "type": "font",
+      "label": "字体",
+      "default": "Arial, sans-serif"
+    },
+    {
+      "name": "list_type",
+      "type": "select",
+      "label": "列表类型",
+      "default": "无序列表",
+      "options": [
+        {"value": "无序列表", "label": "无序列表"},
+        {"value": "有序列表", "label": "有序列表"}
+      ]
+    },
+    {
+      "name": "spacing",
+      "type": "number",
+      "label": "间距",
+      "default": 10,
+      "min": 0,
+      "max": 50
+    }
+  ]
+}

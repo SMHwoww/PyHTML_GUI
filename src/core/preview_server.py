@@ -48,10 +48,9 @@ class PreviewServer:
     
     def start(self, project: Project):
         self.update_html(project)
-        if self.thread and self.thread.is_alive():
-            self.stop()
-        self.thread = threading.Thread(target=self._start_server, daemon=True)
-        self.thread.start()
+        if not self.thread or not self.thread.is_alive():
+            self.thread = threading.Thread(target=self._start_server, daemon=True)
+            self.thread.start()
         return f'http://localhost:{self.port}'
     
     def stop(self):

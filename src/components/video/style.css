@@ -1,0 +1,25 @@
+.video-container {
+  position: relative;
+  overflow: hidden;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.video-container video {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 8px;
+}
+
+/* 响应式设计 */
+@media screen and (max-width: 600px) {
+  .video-container {
+    width: 100% !important;
+  }
+  
+  .video-container video {
+    width: 100%;
+    height: auto;
+  }
+}

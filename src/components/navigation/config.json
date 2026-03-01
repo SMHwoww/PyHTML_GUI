@@ -1,0 +1,44 @@
+{
+  "name": "navigation",
+  "display_name": "导航栏",
+  "category": "布局",
+  "fields": [
+    {
+      "name": "bg_color",
+      "type": "color",
+      "label": "背景颜色",
+      "default": "#333333"
+    },
+    {
+      "name": "text_color",
+      "type": "color",
+      "label": "文字颜色",
+      "default": "#ffffff"
+    },
+    {
+      "name": "font",
+      "type": "font",
+      "label": "字体",
+      "default": "Arial, sans-serif"
+    },
+    {
+      "name": "items",
+      "type": "textarea",
+      "label": "导航项",
+      "default": "首页,/\n关于我们,/about\n服务,/services\n联系我们,/contact",
+      "placeholder": "每行一个导航项，格式：文本,链接"
+    },
+    {
+      "name": "hover_color",
+      "type": "color",
+      "label": "悬停颜色",
+      "default": "#4CAF50"
+    },
+    {
+      "name": "active_color",
+      "type": "color",
+      "label": "激活颜色",
+      "default": "#4CAF50"
+    }
+  ]
+}

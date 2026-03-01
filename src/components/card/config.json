@@ -1,0 +1,52 @@
+{
+  "name": "card",
+  "display_name": "卡片",
+  "category": "布局",
+  "fields": [
+    {
+      "name": "title",
+      "type": "text",
+      "label": "标题",
+      "default": "卡片标题"
+    },
+    {
+      "name": "content",
+      "type": "textarea",
+      "label": "内容",
+      "default": "这是卡片内容，您可以在这里添加更多文本。",
+      "placeholder": "请输入卡片内容"
+    },
+    {
+      "name": "bg_color",
+      "type": "color",
+      "label": "背景颜色",
+      "default": "#ffffff"
+    },
+    {
+      "name": "text_color",
+      "type": "color",
+      "label": "文字颜色",
+      "default": "#333333"
+    },
+    {
+      "name": "font",
+      "type": "font",
+      "label": "字体",
+      "default": "Arial, sans-serif"
+    },
+    {
+      "name": "border_color",
+      "type": "color",
+      "label": "边框颜色",
+      "default": "#e0e0e0"
+    },
+    {
+      "name": "width",
+      "type": "number",
+      "label": "宽度",
+      "default": 300,
+      "min": 100,
+      "max": 1000
+    }
+  ]
+}

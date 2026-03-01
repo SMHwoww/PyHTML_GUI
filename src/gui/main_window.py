@@ -38,6 +38,12 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
         self.auto_save_interval = 30000  # 30秒
         self.auto_save_timer.start(self.auto_save_interval)
         
+        # 预览更新防抖定时器
+        self.preview_timer = QTimer(self)
+        self.preview_timer.setSingleShot(True)
+        self.preview_timer.timeout.connect(self.update_preview)
+        self.preview_delay = 300  # 300毫秒延迟
+        
         self.init_ui()
         self.refresh_component_library()
     
@@ -49,7 +55,7 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
         # 设置窗口图标
         from PyQt5.QtGui import QIcon
         import os
-        icon_path = os.path.join(os.path.dirname(__file__), '..', 'resources', 'icon.png')
+        icon_path = os.path.join(os.path.dirname(__file__), '..', '..', 'asset', 'icon.png')
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
         
@@ -172,7 +178,7 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
         from PyQt5.QtGui import QIcon
         import os
         icon_label = QLabel()
-        icon_path = os.path.join(os.path.dirname(__file__), '..', 'resources', 'icon.png')
+        icon_path = os.path.join(os.path.dirname(__file__), '..', '..', 'asset', 'icon.png')
         if os.path.exists(icon_path):
             icon = QIcon(icon_path)
             pixmap = icon.pixmap(20, 20)
@@ -370,6 +376,10 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
         export_action.triggered.connect(self.export_html)
         file_menu.addAction(export_action)
         
+        export_worker_action = QAction('导出为Cloudflare Worker(&W)', self)
+        export_worker_action.triggered.connect(self.export_cloudflare_worker)
+        file_menu.addAction(export_worker_action)
+        
         view_menu = menubar.addMenu('视图(&V)')
         
         preview_action = QAction('预览(&P)', self)
@@ -398,6 +408,13 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
         splitter.addWidget(middle_panel)
         splitter.addWidget(right_panel)
         
+        # 设置初始宽度
+        total_width = self.width()
+        splitter.setSizes([int(total_width * 0.2), int(total_width * 0.3), int(total_width * 0.5)])
+        
+        # 允许用户通过拖拽调整宽度
+        splitter.setOpaqueResize(True)
+        
         splitter.setStretchFactor(0, 1)
         splitter.setStretchFactor(1, 2)
         splitter.setStretchFactor(2, 1)
@@ -424,6 +441,7 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
         layout.addWidget(label)
         
         self.component_library = QListWidget()
+        self.component_library.setDragEnabled(True)
         self.component_library.itemDoubleClicked.connect(self.add_component_from_library)
         layout.addWidget(self.component_library)
         
@@ -438,7 +456,12 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
         
         self.page_components = QListWidget()
         self.page_components.setSelectionMode(QListWidget.SingleSelection)
+        self.page_components.setAcceptDrops(True)
+        self.page_components.setDragDropMode(QListWidget.DragDrop)
         self.page_components.currentItemChanged.connect(self.on_component_selected)
+        # 重写拖拽事件
+        self.page_components.dragEnterEvent = self.drag_enter_event
+        self.page_components.dropEvent = self.drop_event
         layout.addWidget(self.page_components)
         
         button_layout = QHBoxLayout()
@@ -446,6 +469,15 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
         remove_button = QPushButton('删除选中')
         remove_button.clicked.connect(self.remove_selected_component)
         button_layout.addWidget(remove_button)
+        
+        # 添加组件层级调整按钮
+        move_up_button = QPushButton('上移')
+        move_up_button.clicked.connect(self.move_component_up)
+        button_layout.addWidget(move_up_button)
+        
+        move_down_button = QPushButton('下移')
+        move_down_button.clicked.connect(self.move_component_down)
+        button_layout.addWidget(move_down_button)
         
         export_button = QPushButton('导出HTML')
         export_button.clicked.connect(self.export_html)
@@ -464,11 +496,16 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
         layout = QVBoxLayout(panel)
         
         label = QLabel('属性编辑')
+        label.setAlignment(Qt.AlignTop | Qt.AlignLeft)
         layout.addWidget(label)
         
         self.properties_panel = QWidget()
         self.properties_layout = QVBoxLayout(self.properties_panel)
+        self.properties_layout.setAlignment(Qt.AlignTop)
         layout.addWidget(self.properties_panel)
+        
+        # 添加一个垂直伸缩器，使标签和内容都顶部对齐
+        layout.addStretch(1)
         
         self.clear_properties_panel()
         
@@ -493,17 +530,29 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
             item.setData(Qt.UserRole, i)
             self.page_components.addItem(item)
     
-    def clear_properties_panel(self):
-        # 清空属性面板中的所有控件
-        while self.properties_layout.count() > 0:
-            widget = self.properties_layout.takeAt(0).widget()
+    def clear_layout_recursive(self, layout):
+        # 递归清理布局及其子控件
+        if layout is None:
+            return
+        
+        while layout.count() > 0:
+            item = layout.takeAt(0)
+            if item is None:
+                continue
+            
+            # 先处理子布局
+            child_layout = item.layout()
+            if child_layout:
+                self.clear_layout_recursive(child_layout)
+            
+            # 再处理widget
+            widget = item.widget()
             if widget:
                 widget.deleteLater()
-        
-        # 添加提示信息
-        placeholder = QLabel('请选择一个组件以编辑其属性')
-        placeholder.setAlignment(Qt.AlignCenter)
-        self.properties_layout.addWidget(placeholder)
+    
+    def clear_properties_panel(self):
+        # 清空属性面板中的所有控件
+        self.clear_layout_recursive(self.properties_layout)
     
     def add_component_from_library(self, item):
         component_name = item.data(Qt.UserRole)
@@ -530,12 +579,99 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
             self.clear_properties_panel()
             self.statusBar.showMessage('已删除组件')
     
+    def move_component_up(self):
+        current_item = self.page_components.currentItem()
+        if current_item:
+            index = current_item.data(Qt.UserRole)
+            if index > 0:
+                # 交换组件位置
+                self.project.components[index], self.project.components[index-1] = self.project.components[index-1], self.project.components[index]
+                self.refresh_page_components()
+                # 重新选择移动后的组件
+                self.page_components.setCurrentRow(index-1)
+                self.statusBar.showMessage('组件已上移')
+                # 更新预览
+                self.preview_timer.start(self.preview_delay)
+    
+    def move_component_down(self):
+        current_item = self.page_components.currentItem()
+        if current_item:
+            index = current_item.data(Qt.UserRole)
+            if index < len(self.project.components) - 1:
+                # 交换组件位置
+                self.project.components[index], self.project.components[index+1] = self.project.components[index+1], self.project.components[index]
+                self.refresh_page_components()
+                # 重新选择移动后的组件
+                self.page_components.setCurrentRow(index+1)
+                self.statusBar.showMessage('组件已下移')
+                # 更新预览
+                self.preview_timer.start(self.preview_delay)
+    
+    def drag_enter_event(self, event):
+        # 检查拖拽源是否是组件库
+        if event.source() == self.component_library:
+            event.accept()
+        elif event.source() == self.page_components:
+            event.accept()
+        else:
+            event.ignore()
+    
+    def drop_event(self, event):
+        # 从组件库拖拽到页面组件列表
+        if event.source() == self.component_library:
+            item = event.source().currentItem()
+            if item:
+                component_name = item.data(Qt.UserRole)
+                component = self.component_loader.create_instance(component_name)
+                if component:
+                    # 确定插入位置
+                    drop_pos = self.page_components.dropIndicatorPosition()
+                    if drop_pos == QListWidget.OnItem or drop_pos == QListWidget.OnItemButtom:
+                        # 插入到选中项目之后
+                        current_item = self.page_components.itemAt(event.pos())
+                        if current_item:
+                            index = current_item.data(Qt.UserRole) + 1
+                            self.project.components.insert(index, component)
+                        else:
+                            self.project.add_component(component)
+                    else:
+                        # 添加到末尾
+                        self.project.add_component(component)
+                    self.refresh_page_components()
+                    self.statusBar.showMessage(f'已添加组件: {component.display_name}')
+                    # 更新预览
+                    self.preview_timer.start(self.preview_delay)
+        # 在页面组件列表内部拖拽调整顺序
+        elif event.source() == self.page_components:
+            source_item = event.source().currentItem()
+            if source_item:
+                source_index = source_item.data(Qt.UserRole)
+                # 确定目标位置
+                target_item = self.page_components.itemAt(event.pos())
+                if target_item:
+                    target_index = target_item.data(Qt.UserRole)
+                    # 移除源组件
+                    component = self.project.components.pop(source_index)
+                    # 插入到目标位置
+                    if source_index < target_index:
+                        self.project.components.insert(target_index, component)
+                    else:
+                        self.project.components.insert(target_index, component)
+                    self.refresh_page_components()
+                    # 重新选择移动后的组件
+                    new_index = target_index if source_index > target_index else target_index - 1
+                    self.page_components.setCurrentRow(new_index)
+                    self.statusBar.showMessage('组件位置已调整')
+                    # 更新预览
+                    self.preview_timer.start(self.preview_delay)
+    
     def update_properties_panel(self, component):
         # 清空属性面板
         self.clear_properties_panel()
         
         # 添加组件名称
         component_label = QLabel(f'组件: {component.display_name}')
+        component_label.setStyleSheet('font-size: 14px; font-weight: bold; margin-bottom: 10px;')
         self.properties_layout.addWidget(component_label)
         
         # 为每个字段创建编辑控件
@@ -545,19 +681,26 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
             field_label = field['label']
             field_value = component.get_value(field_name)
             
+            # 创建字段容器
+            field_container = QWidget()
+            field_layout = QVBoxLayout(field_container)
+            field_layout.setContentsMargins(0, 0, 0, 10)
+            
             # 创建字段标签（除了boolean类型，因为boolean类型的标签在checkbox中）
             if field_type != 'boolean':
                 label = QLabel(field_label)
-                self.properties_layout.addWidget(label)
+                label.setStyleSheet('font-size: 12px; font-weight: normal; color: #555; margin-bottom: 4px;')
+                field_layout.addWidget(label)
             
             # 根据字段类型创建不同的编辑控件
             if field_type == 'string':
                 # 字符串类型 - 使用 QLineEdit
                 line_edit = QLineEdit()
                 line_edit.setText(str(field_value) if field_value is not None else '')
+                line_edit.setPlaceholderText(field.get('placeholder', ''))
                 line_edit.textChanged.connect(lambda text, fn=field_name, c=component: 
-                    (c.set_value(fn, text), self.preview_server.update_html(self.project)))
-                self.properties_layout.addWidget(line_edit)
+                    (c.set_value(fn, text), self.preview_timer.start(self.preview_delay)))
+                field_layout.addWidget(line_edit)
             
             elif field_type == 'number':
                 # 数字类型 - 使用 QSpinBox 或 QDoubleSpinBox
@@ -583,51 +726,57 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
                 
                 # 连接信号
                 spin_box.valueChanged.connect(lambda value, fn=field_name, c=component: 
-                    (c.set_value(fn, value), self.preview_server.update_html(self.project)))
-                self.properties_layout.addWidget(spin_box)
+                    (c.set_value(fn, value), self.preview_timer.start(self.preview_delay)))
+                field_layout.addWidget(spin_box)
             
             elif field_type == 'boolean':
                 # 布尔类型 - 使用 QCheckBox
                 check_box = QCheckBox(field_label)
                 check_box.setChecked(bool(field_value))
                 check_box.stateChanged.connect(lambda state, fn=field_name, c=component: 
-                    (c.set_value(fn, state == Qt.Checked), self.preview_server.update_html(self.project)))
-                self.properties_layout.addWidget(check_box)
+                    (c.set_value(fn, state == Qt.Checked), self.preview_timer.start(self.preview_delay)))
+                field_layout.addWidget(check_box)
             
             elif field_type == 'textarea':
                 # 多行文本类型 - 使用 QTextEdit
                 text_edit = QTextEdit()
                 text_edit.setPlainText(str(field_value) if field_value is not None else '')
+                text_edit.setPlaceholderText(field.get('placeholder', ''))
                 # 设置行数（如果有）
                 if 'rows' in field:
                     text_edit.setMaximumHeight(field['rows'] * 20)
+                else:
+                    text_edit.setMaximumHeight(100)
                 text_edit.textChanged.connect(lambda fn=field_name, c=component, te=text_edit: 
-                    (c.set_value(fn, te.toPlainText()), self.preview_server.update_html(self.project)))
-                self.properties_layout.addWidget(text_edit)
+                    (c.set_value(fn, te.toPlainText()), self.preview_timer.start(self.preview_delay)))
+                field_layout.addWidget(text_edit)
             
             elif field_type == 'font':
                 # 字体类型 - 使用 QFontComboBox + QSpinBox
                 font_layout = QHBoxLayout()
+                font_layout.setSpacing(5)
                 
                 # 字体选择
                 font_combo = QFontComboBox()
+                font_combo.setMinimumWidth(150)
                 default_font = field.get('default', 'Arial')
                 font_combo.setCurrentFont(QFont(default_font))
                 font_combo.currentFontChanged.connect(lambda font, fn=field_name, c=component: 
-                    (c.set_value(fn, font.family()), self.preview_server.update_html(self.project)))
+                    (c.set_value(fn, font.family()), self.preview_timer.start(self.preview_delay)))
                 font_layout.addWidget(font_combo)
                 
                 # 字号选择
                 size_spin = QSpinBox()
                 size_spin.setRange(8, 72)
+                size_spin.setFixedWidth(60)
                 default_size = field.get('default_size', 16)
                 size_spin.setValue(default_size)
                 size_field_name = f'{field_name}_size'
                 size_spin.valueChanged.connect(lambda value, fn=size_field_name, c=component: 
-                    (c.set_value(fn, value), self.preview_server.update_html(self.project)))
+                    (c.set_value(fn, value), self.preview_timer.start(self.preview_delay)))
                 font_layout.addWidget(size_spin)
                 
-                self.properties_layout.addLayout(font_layout)
+                field_layout.addLayout(font_layout)
             
             elif field_type == 'select':
                 # 选择类型 - 使用 QComboBox
@@ -641,17 +790,30 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
                     combo_box.setCurrentIndex(index)
                 # 连接信号
                 combo_box.currentIndexChanged.connect(lambda index, cb=combo_box, fn=field_name, c=component: 
-                    (c.set_value(fn, cb.itemData(index)), self.preview_server.update_html(self.project)))
-                self.properties_layout.addWidget(combo_box)
+                    (c.set_value(fn, cb.itemData(index)), self.preview_timer.start(self.preview_delay)))
+                field_layout.addWidget(combo_box)
             
             elif field_type == 'color':
                 # 颜色类型 - 使用 QPushButton + QColorDialog
+                color_layout = QHBoxLayout()
+                color_layout.setSpacing(5)
+                
+                color_label = QLabel(field_value)
+                color_label.setFixedWidth(80)
+                color_label.setStyleSheet('border: 1px solid #ddd; padding: 2px 5px; border-radius: 3px;')
+                
                 color_button = QPushButton()
-                color_button.setStyleSheet(f'background-color: {field_value};')
+                color_button.setFixedWidth(40)
+                color_button.setStyleSheet(f'background-color: {field_value}; border: 1px solid #ddd; border-radius: 3px;')
                 # 使用默认参数来捕获变量值，避免闭包中的变量绑定问题
-                color_button.clicked.connect(lambda checked, fn=field_name, c=component, btn=color_button: 
-                    self.open_color_dialog(fn, c, btn))
-                self.properties_layout.addWidget(color_button)
+                color_button.clicked.connect(lambda checked, fn=field_name, c=component, btn=color_button, lbl=color_label: 
+                    (self.open_color_dialog(fn, c, btn), lbl.setText(c.get_value(fn)), self.preview_timer.start(self.preview_delay)))
+                
+                color_layout.addWidget(color_label)
+                color_layout.addWidget(color_button)
+                field_layout.addLayout(color_layout)
+            
+            self.properties_layout.addWidget(field_container)
         
         # 添加一个垂直伸缩器，使控件顶部对齐
         self.properties_layout.addStretch(1)
@@ -665,6 +827,16 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
                 QMessageBox.information(self, '成功', f'HTML已导出到: {file_path}')
             except Exception as e:
                 QMessageBox.critical(self, '错误', f'无法导出HTML: {str(e)}')
+    
+    def export_cloudflare_worker(self):
+        file_path, _ = QFileDialog.getSaveFileName(self, '导出为Cloudflare Worker', '', 'JavaScript File (*.js)')
+        if file_path:
+            try:
+                self.html_generator.save_cloudflare_worker(self.project.components, file_path, self.project.title, self.project.head_config)
+                self.statusBar.showMessage(f'已导出: {file_path}')
+                QMessageBox.information(self, '成功', f'Cloudflare Worker已导出到: {file_path}\n\n使用方法:\n1. 登录Cloudflare控制台\n2. 进入Workers & Pages\n3. 创建新的Worker\n4. 粘贴生成的代码\n5. 部署并测试')
+            except Exception as e:
+                QMessageBox.critical(self, '错误', f'无法导出Cloudflare Worker: {str(e)}')
     
     def toggle_preview(self):
         try:
@@ -687,38 +859,58 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
             component.set_value(field_name, color.name())
             # 更新按钮的背景色
             button.setStyleSheet(f'background-color: {color.name()};')
-            # 更新预览
-            self.preview_server.update_html(self.project)
+            # 预览更新由防抖定时器处理
     
     def import_component(self):
         # 导入组件
-        dir_path = QFileDialog.getExistingDirectory(self, '选择组件目录')
-        if dir_path:
-            try:
-                # 检查是否是单个组件目录
-                component_dir = Path(dir_path)
-                if (component_dir / 'config.json').exists():
-                    # 单个组件
-                    component = self.component_loader.load_component(str(component_dir))
-                    if component:
-                        self.refresh_component_library()
-                        self.statusBar.showMessage(f'已导入组件: {component.display_name}')
-                        QMessageBox.information(self, '成功', f'已导入组件: {component.display_name}')
-                else:
-                    # 检查是否包含多个组件子目录
-                    imported_count = 0
-                    for item in component_dir.iterdir():
-                        if item.is_dir() and (item / 'config.json').exists():
-                            self.component_loader.load_component(str(item))
-                            imported_count += 1
-                    if imported_count > 0:
-                        self.refresh_component_library()
-                        self.statusBar.showMessage(f'已导入 {imported_count} 个组件')
-                        QMessageBox.information(self, '成功', f'已导入 {imported_count} 个组件')
-                    else:
-                        QMessageBox.warning(self, '警告', '未找到有效的组件目录')
-            except Exception as e:
-                QMessageBox.critical(self, '错误', f'无法导入组件: {str(e)}')
+        file_dialog = QFileDialog()
+        file_dialog.setFileMode(QFileDialog.ExistingFile)
+        file_dialog.setNameFilter('压缩包 (*.zip *.rar *.7z *.tar *.tar.gz)')
+        
+        if file_dialog.exec_():
+            selected_files = file_dialog.selectedFiles()
+            if selected_files:
+                try:
+                    import tempfile
+                    from zipfile import ZipFile
+                    
+                    path = selected_files[0]
+                    # 处理压缩包导入
+                    with tempfile.TemporaryDirectory() as temp_dir:
+                        # 解压压缩包
+                        try:
+                            with ZipFile(path, 'r') as zip_ref:
+                                zip_ref.extractall(temp_dir)
+                        except Exception as e:
+                            QMessageBox.critical(self, '错误', f'无法解压压缩包: {str(e)}')
+                            return
+                        
+                        # 从临时目录导入组件
+                        component_dir = Path(temp_dir)
+                        if (component_dir / 'config.json').exists():
+                            # 单个组件
+                            component = self.component_loader.load_component(str(component_dir))
+                            if component:
+                                self.refresh_component_library()
+                                self.statusBar.showMessage(f'已导入组件: {component.display_name}')
+                                QMessageBox.information(self, '成功', f'已导入组件: {component.display_name}')
+                        else:
+                            # 检查是否包含多个组件子目录
+                            imported_count = 0
+                            for item in component_dir.iterdir():
+                                if item.is_dir() and (item / 'config.json').exists():
+                                    self.component_loader.load_component(str(item))
+                                    imported_count += 1
+                            if imported_count > 0:
+                                self.refresh_component_library()
+                                self.statusBar.showMessage(f'已导入 {imported_count} 个组件')
+                                QMessageBox.information(self, '成功', f'已导入 {imported_count} 个组件')
+                            else:
+                                QMessageBox.warning(self, '警告', '未找到有效的组件目录')
+                except Exception as e:
+                    QMessageBox.critical(self, '错误', f'无法导入组件: {str(e)}')
+    
+
     
     def new_project(self):
         # 新建项目
@@ -762,6 +954,11 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
                 self.statusBar.showMessage(f'自动保存: {self.project.name}')
             except Exception:
                 pass
+    
+    def update_preview(self):
+        # 实际更新预览
+        self.preview_server.update_html(self.project)
+        self.statusBar.showMessage('预览已更新')
     
     def open_head_settings(self):
         # 创建Head设置对话框

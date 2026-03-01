@@ -17,8 +17,18 @@ class Component:
         config_path = self.component_dir / 'config.json'
         if not config_path.exists():
             raise FileNotFoundError(f'config.json not found in {self.component_dir}')
-        with open(config_path, 'r', encoding='utf-8') as f:
-            return json.load(f)
+        
+        # 尝试使用GBK编码读取
+        try:
+            with open(config_path, 'r', encoding='gbk') as f:
+                return json.load(f)
+        except Exception:
+            # GBK失败，尝试使用UTF-8编码
+            try:
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            except Exception as e:
+                raise Exception(f'Failed to load config.json with both GBK and UTF-8 encoding: {e}')
     
     def _get_default_values(self) -> Dict[str, Any]:
         values = {}
@@ -36,23 +46,35 @@ class Component:
     def get_template(self) -> str:
         template_path = self.component_dir / 'template.html'
         if template_path.exists():
-            with open(template_path, 'r', encoding='utf-8') as f:
-                return f.read()
+            return self._read_file_with_encoding(template_path)
         return ''
     
     def get_style(self) -> str:
         style_path = self.component_dir / 'style.css'
         if style_path.exists():
-            with open(style_path, 'r', encoding='utf-8') as f:
-                return f.read()
+            return self._read_file_with_encoding(style_path)
         return ''
     
     def get_script(self) -> str:
         script_path = self.component_dir / 'script.js'
         if script_path.exists():
-            with open(script_path, 'r', encoding='utf-8') as f:
-                return f.read()
+            return self._read_file_with_encoding(script_path)
         return ''
+    
+    def _read_file_with_encoding(self, file_path: Path) -> str:
+        """读取文件，尝试使用GBK和UTF-8编码"""
+        # 尝试使用GBK编码读取
+        try:
+            with open(file_path, 'r', encoding='gbk') as f:
+                return f.read()
+        except Exception:
+            # GBK失败，尝试使用UTF-8编码
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    return f.read()
+            except Exception as e:
+                print(f'Failed to read {file_path} with both GBK and UTF-8 encoding: {e}')
+                return ''
     
     def to_dict(self) -> Dict[str, Any]:
         return {

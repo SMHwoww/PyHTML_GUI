@@ -1,0 +1,18 @@
+<nav style="background-color: {{ bg_color }}; font-family: {{ font }};">
+  <ul style="list-style-type: none; margin: 0; padding: 0; overflow: hidden;">
+    {% for item in items.split('\n') %}
+    {% set parts = item.strip().split(',') %}
+    {% set text = parts[0] %}
+    {% set link = parts[1] if parts|length > 1 else '#' %}
+    {% set processed_link = link %}
+    {% if link and not link.startswith('http://') and not link.startswith('https://') and not link.startswith('#') and not link.startswith('/') %}
+      {% set processed_link = 'http://' ~ link %}
+    {% endif %}
+    <li style="float: left;">
+      <a href="{{ processed_link }}" style="display: block; color: {{ text_color }}; text-align: center; padding: 14px 16px; text-decoration: none; transition: background-color 0.3s ease, color 0.3s ease;">
+        {{ text }}
+      </a>
+    </li>
+    {% endfor %}
+  </ul>
+</nav>

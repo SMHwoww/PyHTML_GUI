@@ -27,7 +27,7 @@
       "name": "link",
       "type": "string",
       "label": "链接",
-      "default": "#",
+      "default": "https://www.example.com",
       "placeholder": "请输入链接URL"
     },
     {
@@ -39,6 +39,17 @@
         {"value": "small", "label": "小"},
         {"value": "medium", "label": "中"},
         {"value": "large", "label": "大"}
+      ]
+    },
+    {
+      "name": "alignment",
+      "type": "select",
+      "label": "对齐方式",
+      "default": "left",
+      "options": [
+        {"value": "left", "label": "左对齐"},
+        {"value": "center", "label": "居中"},
+        {"value": "right", "label": "右对齐"}
       ]
     },
     {

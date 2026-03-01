@@ -1,0 +1,73 @@
+.form {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  margin: 20px 0;
+}
+
+.form h2 {
+  color: inherit;
+  margin-bottom: 20px;
+  font-size: 1.5em;
+}
+
+.form-group {
+  margin-bottom: 15px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: bold;
+}
+
+.form-group input,
+.form-group textarea {
+  width: 100%;
+  padding: 8px;
+  box-sizing: border-box;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 14px;
+  transition: border-color 0.3s ease;
+}
+
+.form-group input:focus,
+.form-group textarea:focus {
+  outline: none;
+  border-color: #0066cc;
+  box-shadow: 0 0 0 2px rgba(0,102,204,0.2);
+}
+
+.form-group textarea {
+  resize: vertical;
+  min-height: 100px;
+}
+
+button[type="submit"] {
+  transition: background-color 0.3s ease;
+}
+
+button[type="submit"]:hover {
+  opacity: 0.9;
+}
+
+button[type="submit"]:active {
+  transform: translateY(1px);
+}
+
+/* 响应式设计 */
+@media screen and (max-width: 600px) {
+  .form {
+    width: 100% !important;
+    padding: 15px;
+  }
+  
+  .form h2 {
+    font-size: 1.2em;
+  }
+  
+  .form-group input,
+  .form-group textarea {
+    font-size: 13px;
+  }
+}

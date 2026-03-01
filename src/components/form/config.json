@@ -1,0 +1,92 @@
+{
+  "name": "form",
+  "display_name": "表单",
+  "category": "交互",
+  "fields": [
+    {
+      "name": "title",
+      "type": "text",
+      "label": "表单标题",
+      "default": "联系表单"
+    },
+    {
+      "name": "bg_color",
+      "type": "color",
+      "label": "背景颜色",
+      "default": "#f5f5f5"
+    },
+    {
+      "name": "text_color",
+      "type": "color",
+      "label": "文字颜色",
+      "default": "#333333"
+    },
+    {
+      "name": "font",
+      "type": "font",
+      "label": "字体",
+      "default": "Arial, sans-serif"
+    },
+    {
+      "name": "button_color",
+      "type": "color",
+      "label": "按钮颜色",
+      "default": "#0066cc"
+    },
+    {
+      "name": "width",
+      "type": "number",
+      "label": "宽度",
+      "default": 400,
+      "min": 200,
+      "max": 800
+    },
+    {
+      "name": "show_name",
+      "type": "boolean",
+      "label": "显示姓名字段",
+      "default": true
+    },
+    {
+      "name": "show_email",
+      "type": "boolean",
+      "label": "显示邮箱字段",
+      "default": true
+    },
+    {
+      "name": "show_subject",
+      "type": "boolean",
+      "label": "显示主题字段",
+      "default": true
+    },
+    {
+      "name": "show_message",
+      "type": "boolean",
+      "label": "显示消息字段",
+      "default": true
+    },
+    {
+      "name": "submit_text",
+      "type": "text",
+      "label": "提交按钮文本",
+      "default": "提交"
+    },
+    {
+      "name": "form_action",
+      "type": "text",
+      "label": "表单提交地址",
+      "default": "#",
+      "placeholder": "请输入表单提交的URL"
+    },
+    {
+      "name": "form_method",
+      "type": "select",
+      "label": "提交方式",
+      "default": "post",
+      "options": [
+        {"value": "get", "label": "GET"},
+        {"value": "post", "label": "POST"}
+      ]
+    }
+  ]
+}

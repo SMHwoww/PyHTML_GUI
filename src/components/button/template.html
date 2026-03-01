@@ -1,3 +1,9 @@
-<a href="{{ link }}" class="button-component button-{{ size }}" style="color: {{ color }}; background-color: {{ bg_color }}; font-family: {{ font_family }}; font-size: {{ font_family_size }}px;">
-  {{ text }}
-</a>
+<div class="button-container" style="text-align: {{ alignment }};">
+  {% set processed_link = link %}
+  {% if link and not link.startswith('http://') and not link.startswith('https://') and not link.startswith('#') and not link.startswith('/') %}
+    {% set processed_link = 'http://' ~ link %}
+  {% endif %}
+  <a href="{{ processed_link }}" class="button-component button-{{ size }}" style="color: {{ color }}; background-color: {{ bg_color }}; font-family: {{ font_family }}; font-size: {{ font_family_size }}px;">
+    {{ text }}
+  </a>
+</div>

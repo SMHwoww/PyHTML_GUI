@@ -1,0 +1,12 @@
+<div class="video-container" style="width: {{ width }}px; margin: 10px 0;">
+  <video 
+    width="{{ width }}" 
+    height="{{ height }}"
+    {% if controls %}controls{% endif %}
+    {% if autoplay %}autoplay{% endif %}
+    {% if loop %}loop{% endif %}
+  >
+    <source src="{{ video_url }}" type="video/mp4">
+    您的浏览器不支持视频标签。
+  </video>
+</div>

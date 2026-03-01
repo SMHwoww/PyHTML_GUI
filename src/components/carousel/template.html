@@ -1,0 +1,113 @@
+<div class="carousel-container" id="carousel-{{ component_id }}" style="max-width: {{ width }}px; height: {{ height }}px; padding-top: 0;">
+    <div class="carousel-slide">
+        {% for image in images.split('\n') if image.strip() %}
+        <div class="carousel-item {% if loop.first %}active{% endif %}">
+            <img src="{{ image.strip() }}" alt="图片{{ loop.index }}">
+        </div>
+        {% endfor %}
+    </div>
+    {% if show_controls %}
+    <button class="carousel-control prev" id="prevBtn-{{ component_id }}">‹</button>
+    <button class="carousel-control next" id="nextBtn-{{ component_id }}">›</button>
+    {% endif %}
+    {% if show_indicators %}
+    <div class="carousel-indicators" id="indicators-{{ component_id }}"></div>
+    {% endif %}
+</div>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const carousel = document.getElementById('carousel-{{ component_id }}');
+        const slides = document.querySelectorAll('.carousel-item');
+        const prevBtn = document.getElementById('prevBtn-{{ component_id }}');
+        const nextBtn = document.getElementById('nextBtn-{{ component_id }}');
+        const indicatorsContainer = document.getElementById('indicators-{{ component_id }}');
+        let currentIndex = 0;
+        let interval;
+        const slideCount = slides.length;
+        let indicators = null;
+        
+        // 创建指示器
+        if (indicatorsContainer) {
+            for (let i = 0; i < slideCount; i++) {
+                const indicator = document.createElement('button');
+                indicator.classList.add('carousel-indicator');
+                if (i === 0) {
+                    indicator.classList.add('active');
+                }
+                indicator.addEventListener('click', () => goToSlide(i));
+                indicatorsContainer.appendChild(indicator);
+            }
+            indicators = document.querySelectorAll('.carousel-indicator');
+        }
+        
+        // 初始化轮播
+        function initCarousel() {
+            {% if autoplay %}
+            startAutoSlide();
+            
+            // 鼠标悬停暂停，移开恢复
+            carousel.addEventListener('mouseenter', stopAutoSlide);
+            carousel.addEventListener('mouseleave', startAutoSlide);
+            {% endif %}
+            
+            // 按钮点击事件
+            if (prevBtn) prevBtn.addEventListener('click', prevSlide);
+            if (nextBtn) nextBtn.addEventListener('click', nextSlide);
+            
+            // 图片加载失败处理
+            slides.forEach(slide => {
+                const img = slide.querySelector('img');
+                img.addEventListener('error', function() {
+                    this.src = 'https://via.placeholder.com/{{ width }}x{{ height }}?text=图片加载失败';
+                    this.alt = '图片加载失败';
+                });
+            });
+        }
+        
+        // 切换到指定幻灯片
+        function goToSlide(index) {
+            slides[currentIndex].classList.remove('active');
+            if (indicators) indicators[currentIndex].classList.remove('active');
+            
+            currentIndex = (index + slideCount) % slideCount;
+            
+            slides[currentIndex].classList.add('active');
+            if (indicators) indicators[currentIndex].classList.add('active');
+        }
+        
+        // 上一张
+        function prevSlide() {
+            goToSlide(currentIndex - 1);
+            {% if autoplay %}
+            resetAutoSlide();
+            {% endif %}
+        }
+        
+        // 下一张
+        function nextSlide() {
+            goToSlide(currentIndex + 1);
+            {% if autoplay %}
+            resetAutoSlide();
+            {% endif %}
+        }
+        
+        // 开始自动轮播
+        function startAutoSlide() {
+            interval = setInterval(nextSlide, {{ interval }});
+        }
+        
+        // 停止自动轮播
+        function stopAutoSlide() {
+            clearInterval(interval);
+        }
+        
+        // 重置自动轮播
+        function resetAutoSlide() {
+            stopAutoSlide();
+            startAutoSlide();
+        }
+        
+        // 初始化
+        initCarousel();
+    });
+</script>

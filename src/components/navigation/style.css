@@ -1,0 +1,43 @@
+nav {
+  width: 100%;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+nav ul {
+  list-style-type: none;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+nav li {
+  float: left;
+}
+
+nav li a {
+  display: block;
+  text-align: center;
+  padding: 14px 16px;
+  text-decoration: none;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+nav li a:hover {
+  background-color: rgba(255,255,255,0.1);
+  color: {{ hover_color }};
+}
+
+nav li a:active {
+  color: {{ active_color }};
+}
+
+/* 响应式设计 */
+@media screen and (max-width: 600px) {
+  nav li {
+    float: none;
+  }
+  
+  nav li a {
+    text-align: left;
+  }
+}

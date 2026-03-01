@@ -1,0 +1,48 @@
+{
+  "name": "video",
+  "display_name": "视频",
+  "category": "媒体",
+  "fields": [
+    {
+      "name": "video_url",
+      "type": "string",
+      "label": "视频URL",
+      "default": "https://www.w3schools.com/html/mov_bbb.mp4",
+      "placeholder": "请输入视频URL"
+    },
+    {
+      "name": "width",
+      "type": "number",
+      "label": "宽度",
+      "default": 640,
+      "min": 100,
+      "max": 1280
+    },
+    {
+      "name": "height",
+      "type": "number",
+      "label": "高度",
+      "default": 360,
+      "min": 100,
+      "max": 720
+    },
+    {
+      "name": "controls",
+      "type": "boolean",
+      "label": "显示控件",
+      "default": true
+    },
+    {
+      "name": "autoplay",
+      "type": "boolean",
+      "label": "自动播放",
+      "default": false
+    },
+    {
+      "name": "loop",
+      "type": "boolean",
+      "label": "循环播放",
+      "default": false
+    }
+  ]
+}
