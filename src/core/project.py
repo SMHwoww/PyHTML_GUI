@@ -50,7 +50,7 @@ class Project:
         }
     
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'Project':
+    def from_dict(cls, data: Dict[str, Any], component_loader=None) -> 'Project':
         project = cls(data.get('name', 'Untitled'))
         project.title = data.get('title', project.name)
         project.head_config = data.get('head_config', {
@@ -64,8 +64,13 @@ class Project:
         })
         for comp_data in data.get('components', []):
             try:
-                component = Component.from_dict(comp_data)
-                project.components.append(component)
+                if component_loader and 'component_name' in comp_data:
+                    component = component_loader.create_instance(comp_data['component_name'])
+                    if component:
+                        component.values = comp_data['values']
+                        project.components.append(component)
+                else:
+                    print(f'Component loader not provided or component_name missing for component: {comp_data}')
             except Exception as e:
                 print(f'Failed to load component: {e}')
         return project
@@ -82,9 +87,9 @@ class Project:
         return self.file_path
     
     @classmethod
-    def load(cls, file_path: str) -> 'Project':
+    def load(cls, file_path: str, component_loader=None) -> 'Project':
         with open(file_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
-        project = cls.from_dict(data)
+        project = cls.from_dict(data, component_loader)
         project.file_path = file_path
         return project

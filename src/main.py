@@ -6,7 +6,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 def main():
     print('pyHTML - 组件化HTML生成器')
-    print('版本: 0.3.1')
+    print('版本: 0.4.0')
     print()
     
     try:

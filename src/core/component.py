@@ -79,15 +79,13 @@ class Component:
     def to_dict(self) -> Dict[str, Any]:
         return {
             'component_name': self.name,
-            'component_dir': str(self.component_dir),
             'values': self.values
         }
     
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'Component':
-        component = cls(data['component_dir'])
-        component.values = data['values']
-        return component
+        # 这个方法不再使用，因为我们现在使用 component_loader.create_instance
+        raise NotImplementedError('Component.from_dict is no longer used. Use component_loader.create_instance instead.')
 
 
 class ComponentLoader:

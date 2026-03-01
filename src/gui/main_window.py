@@ -18,6 +18,7 @@ except ImportError:
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from core import Project, ComponentLoader, HTMLGenerator, PreviewServer
 from core.cloudflare_worker import CloudflareWorkerGenerator
+from gui.ai_dialog import AIDialogWidget
 from utils import get_components_dir
 
 
@@ -378,7 +379,7 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
         export_action.triggered.connect(self.export_html)
         file_menu.addAction(export_action)
         
-        export_worker_action = QAction('导出为Cloudflare Worker(&W)', self)
+        export_worker_action = QAction('部署Cloudflare Worker(&W)', self)
         export_worker_action.triggered.connect(self.export_cloudflare_worker)
         file_menu.addAction(export_worker_action)
         
@@ -387,6 +388,13 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
         preview_action = QAction('预览(&P)', self)
         preview_action.triggered.connect(self.toggle_preview)
         view_menu.addAction(preview_action)
+        
+        # 添加AI助手菜单
+        ai_menu = menubar.addMenu('AI助手beta(&A)')
+        
+        ai_dialog_action = QAction('打开AI对话(&D)', self)
+        ai_dialog_action.triggered.connect(self.open_ai_dialog)
+        ai_menu.addAction(ai_dialog_action)
         
         # 添加设置菜单
         settings_menu = menubar.addMenu('设置(&S)')
@@ -831,7 +839,7 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
                 QMessageBox.critical(self, '错误', f'无法导出HTML: {str(e)}')
     
     def export_cloudflare_worker(self):
-        from PyQt5.QtWidgets import QFileDialog, QMessageBox, QDialog, QVBoxLayout, QLabel, QCheckBox, QPushButton, QHBoxLayout
+        from PyQt5.QtWidgets import QFileDialog, QMessageBox, QDialog, QVBoxLayout, QLabel, QCheckBox, QPushButton, QHBoxLayout, QTextEdit
         import subprocess
         
         # 选择保存目录
@@ -891,9 +899,9 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
                     api_token_input.setEchoMode(QLineEdit.Password)
                     if api_token:
                         api_token_input.setText(api_token)
-                        layout.addWidget(QLabel('CLOUDFLARE_API_TOKEN环境变量已设置，可以使用或修改。'))
+                        layout.addWidget(QLabel('环境变量已设置，可以使用或修改。'))
                     else:
-                        layout.addWidget(QLabel('未设置CLOUDFLARE_API_TOKEN环境变量，请输入API token。'))
+                        layout.addWidget(QLabel('未设置环境变量，请输入API token。'))
                     layout.addWidget(QLabel('API Token:'))
                     layout.addWidget(api_token_input)
                     
@@ -936,15 +944,56 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
             )
             
             if auto_deploy_enabled:
-                # 自动部署
-                self.statusBar.showMessage('正在部署到Cloudflare...')
-                success = self.cloudflare_worker_generator.deploy_worker(project_path, api_token)
-                if success:
-                    self.statusBar.showMessage('部署成功!')
-                    QMessageBox.information(self, '成功', f'Cloudflare Worker已成功部署!\n\n项目目录: {project_path}')
-                else:
-                    self.statusBar.showMessage('部署失败')
-                    QMessageBox.warning(self, '部署失败', f'Cloudflare Worker项目已创建，但部署失败。\n\n项目目录: {project_path}\n\n请检查错误信息并手动部署。')
+                # 创建日志窗口
+                log_dialog = QDialog(self)
+                log_dialog.setWindowTitle('部署日志')
+                log_dialog.setGeometry(300, 200, 800, 500)
+                log_layout = QVBoxLayout(log_dialog)
+                
+                log_text = QTextEdit()
+                log_text.setReadOnly(True)
+                log_text.setStyleSheet('font-family: Consolas, Monaco, monospace;')
+                log_layout.addWidget(log_text)
+                
+                # 关闭按钮
+                close_button = QPushButton('关闭')
+                close_button.clicked.connect(log_dialog.close)
+                log_layout.addWidget(close_button)
+                
+                # 显示日志窗口
+                log_dialog.show()
+                
+                # 日志回调函数
+                def log_callback(message):
+                    # 在主线程中更新UI
+                    from PyQt5.QtCore import QCoreApplication, QEvent
+                    class LogEvent(QEvent):
+                        def __init__(self, message):
+                            super().__init__(QEvent.User)
+                            self.message = message
+                    QCoreApplication.postEvent(self, LogEvent(message))
+                
+                # 自动部署（在后台线程中执行）
+                self.statusBar.showMessage('部署已开始，若下次打开应用，您可以在项目文件夹中找到一个.pyhtml文件，点击左上角的文件>>打开项目选中该文件即可继续编辑网页')
+                
+                # 创建后台线程
+                import threading
+                def deploy_in_thread():
+                    success, deployed_url = self.cloudflare_worker_generator.deploy_worker(project_path, api_token, custom_domain, log_callback)
+                    # 部署完成后，在主线程中更新UI
+                    from PyQt5.QtCore import QCoreApplication, QEvent
+                    class DeployFinishedEvent(QEvent):
+                        def __init__(self, success, project_path, deployed_url, log_dialog):
+                            super().__init__(QEvent.User)
+                            self.success = success
+                            self.project_path = project_path
+                            self.deployed_url = deployed_url
+                            self.log_dialog = log_dialog
+                    QCoreApplication.postEvent(self, DeployFinishedEvent(success, project_path, deployed_url, log_dialog))
+                
+                # 启动后台线程
+                deploy_thread = threading.Thread(target=deploy_in_thread, daemon=True)
+                deploy_thread.start()
             else:
                 # 仅创建项目
                 self.statusBar.showMessage(f'已创建Cloudflare Worker项目: {project_path}')
@@ -1039,7 +1088,7 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
         file_path, _ = QFileDialog.getOpenFileName(self, '打开项目', '', 'pyHTML项目文件 (*.pyhtml)')
         if file_path:
             try:
-                self.project = Project.load(file_path)
+                self.project = Project.load(file_path, self.component_loader)
                 self.refresh_page_components()
                 self.clear_properties_panel()
                 self.statusBar.showMessage(f'已打开项目: {self.project.name}')
@@ -1470,12 +1519,77 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
         self.statusBar.showMessage('Head设置已保存')
         dialog.accept()
     
+    def open_ai_dialog(self):
+        from PyQt5.QtWidgets import QDialog, QVBoxLayout
+        
+        dialog = QDialog(self)
+        dialog.setWindowTitle('AI 助手')
+        dialog.setGeometry(200, 200, 700, 600)
+        
+        layout = QVBoxLayout(dialog)
+        
+        ai_widget = AIDialogWidget(self.component_loader)
+        
+        def on_project_loaded(project):
+            self.project = project
+            self.refresh_page_components()
+            self.clear_properties_panel()
+            self.statusBar.showMessage(f'已加载项目: {self.project.name}')
+            self.preview_timer.start(self.preview_delay)
+            dialog.accept()
+        
+        ai_widget.project_loaded.connect(on_project_loaded)
+        
+        layout.addWidget(ai_widget)
+        
+        dialog.exec_()
+    
     def closeEvent(self, event):
         # 停止自动保存定时器
         self.auto_save_timer.stop()
         # 停止预览服务器
         self.preview_server.stop()
         event.accept()
+    
+    def event(self, event):
+        # 处理自定义事件
+        from PyQt5.QtCore import QEvent
+        from PyQt5.QtWidgets import QTextEdit, QMessageBox, QApplication
+        
+        if event.type() == QEvent.User:
+            # 检查是否是日志事件
+            if hasattr(event, 'message'):
+                # 查找所有打开的窗口，找到部署日志窗口
+                for widget in QApplication.topLevelWidgets():
+                    if hasattr(widget, 'windowTitle') and widget.windowTitle() == '部署日志':
+                        layout = widget.layout()
+                        if layout:
+                            for i in range(layout.count()):
+                                item = layout.itemAt(i)
+                                if item and item.widget() and isinstance(item.widget(), QTextEdit):
+                                    item.widget().append(event.message)
+                                    # 滚动到底部
+                                    cursor = item.widget().textCursor()
+                                    cursor.movePosition(cursor.End)
+                                    item.widget().setTextCursor(cursor)
+                        break
+                return True
+            # 检查是否是部署完成事件
+            elif hasattr(event, 'success') and hasattr(event, 'project_path'):
+                if event.success:
+                    self.statusBar.showMessage('部署成功!')
+                    message = f'Cloudflare Worker已成功部署!\n\n项目目录: {event.project_path}'
+                    if hasattr(event, 'deployed_url') and event.deployed_url:
+                        message += f'\n\n部署地址: {event.deployed_url}'
+                        # 打开部署的网页
+                        import webbrowser
+                        webbrowser.open(event.deployed_url)
+                    QMessageBox.information(self, '成功', message)
+                else:
+                    self.statusBar.showMessage('部署失败')
+                    QMessageBox.warning(self, '部署失败', f'Cloudflare Worker项目已创建，但部署失败。\n\n项目目录: {event.project_path}\n\n请查看部署日志了解详情。')
+                return True
+        return super().event(event)
 
 
 def run_gui():

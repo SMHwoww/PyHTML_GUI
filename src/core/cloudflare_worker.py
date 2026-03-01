@@ -136,19 +136,31 @@ logs
         with open(project_path / '.gitignore', 'w', encoding='utf-8') as f:
             f.write(gitignore_content)
         
+        # 保存.pyhtml文件
+        import json
+        project_data = {
+            "name": project_name,
+            "title": title,
+            "components": [component.to_dict() for component in components],
+            "head_config": head_config or {
+                "lang": "zh-CN",
+                "meta_tags": [
+                    {"name": "charset", "content": "UTF-8"},
+                    {"name": "viewport", "content": "width=device-width, initial-scale=1.0"}
+                ],
+                "links": [],
+                "scripts": []
+            }
+        }
+        with open(project_path / f"{project_name}.pyhtml", 'w', encoding='utf-8') as f:
+            json.dump(project_data, f, ensure_ascii=False, indent=2)
+        
         return str(project_path)
     
     def _check_npm_available(self) -> bool:
         """检查npm是否可用"""
-        try:
-            # 尝试使用完整路径
-            import os
-            # 检查环境变量PATH
-            path = os.environ.get('PATH', '')
-            print(f'当前PATH环境变量: {path}')
-            
+        try:      
             # 尝试不同的方式运行npm
-            print('尝试运行npm --version...')
             result = subprocess.run(
                 ['npm', '--version'],
                 capture_output=True,
@@ -156,9 +168,6 @@ logs
                 encoding='utf-8',  # 明确指定编码为UTF-8
                 shell=True  # 使用shell=True可能会解决路径问题
             )
-            print(f'npm --version 退出码: {result.returncode}')
-            print(f'npm --version 输出: {result.stdout}')
-            print(f'npm --version 错误: {result.stderr}')
             
             if result.returncode == 0:
                 print('npm可用!')
@@ -175,107 +184,195 @@ logs
             traceback.print_exc()
             return False
     
-    def install_dependencies(self, project_dir: str) -> bool:
+    def install_dependencies(self, project_dir: str, log_callback=None) -> bool:
         """安装项目依赖"""
         if not self._check_npm_available():
             return False
         
         try:
-            print('正在安装依赖...')
-            result = subprocess.run(
+            log_message = '正在安装依赖...'
+            print(log_message)
+            if log_callback:
+                log_callback(log_message)
+            
+            # 实时输出安装过程
+            import sys
+            process = subprocess.Popen(
                 ['npm', 'install'],
                 cwd=project_dir,
-                capture_output=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
                 text=True,
-                encoding='utf-8',  # 明确指定编码为UTF-8
-                shell=True  # 使用shell=True
+                encoding='utf-8',
+                shell=True
             )
             
-            print(f'npm install 退出码: {result.returncode}')
-            print(f'npm install 输出: {result.stdout}')
-            print(f'npm install 错误: {result.stderr}')
+            while True:
+                line = process.stdout.readline()
+                if not line:
+                    break
+                line = line.strip()
+                print(line)
+                if log_callback:
+                    log_callback(line)
+                sys.stdout.flush()
             
-            if result.returncode == 0:
-                print('依赖安装成功!')
+            returncode = process.wait()
+            
+            if returncode == 0:
+                success_message = '依赖安装成功!'
+                print(success_message)
+                if log_callback:
+                    log_callback(success_message)
                 return True
             else:
-                print(f'安装依赖失败: {result.stderr}')
+                error_message = '安装依赖失败!'
+                print(error_message)
+                if log_callback:
+                    log_callback(error_message)
                 return False
         except Exception as e:
-            print(f'安装依赖时发生错误: {str(e)}')
+            error_message = f'安装依赖时发生错误: {str(e)}'
+            print(error_message)
+            if log_callback:
+                log_callback(error_message)
             import traceback
             traceback.print_exc()
             return False
     
-    def deploy_worker(self, project_dir: str, api_token: str = None) -> bool:
+    def deploy_worker(self, project_dir: str, api_token: str = None, custom_domain: str = None, log_callback=None) -> bool:
         """部署Cloudflare Worker"""
         if not self._check_npm_available():
-            return False
-        
+            return False, None       
         try:
             # 检查CLOUDFLARE_API_TOKEN
             import os
-            print('=== 环境变量检查 ===')
-            print(f'当前工作目录: {os.getcwd()}')
             
             # 优先使用传入的api_token参数
             if api_token:
-                print('使用传入的API token')
+                log_message = '使用传入的API token'
+                print(log_message)
+                if log_callback:
+                    log_callback(log_message)
             else:
                 # 尝试从环境变量获取
                 api_token = os.environ.get('CLOUDFLARE_API_TOKEN')
-                print(f'CLOUDFLARE_API_TOKEN环境变量值: {api_token if api_token else "未设置"}')
+                log_message = f'CLOUDFLARE_API_TOKEN环境变量值: {api_token if api_token else "未设置"}'
+                print(log_message)
+                if log_callback:
+                    log_callback(log_message)
             
             if not api_token:
-                print('错误: 未设置CLOUDFLARE_API_TOKEN')
-                print('请通过以下方式之一设置API token:')
-                print('1. 设置CLOUDFLARE_API_TOKEN环境变量')
-                print('2. 在部署时传入API token参数')
-                print('3. 手动部署: 进入项目目录并运行 npm run deploy')
-                print('\n获取API token的步骤:')
-                print('1. 访问 https://developers.cloudflare.com/fundamentals/api/get-started/create-token/')
-                print('2. 创建一个具有Workers权限的API token')
-                return False
+                error_messages = [
+                    '错误: 未设置CLOUDFLARE_API_TOKEN',
+                    '请通过以下方式之一设置API token:',
+                    '1. 设置CLOUDFLARE_API_TOKEN环境变量',
+                    '2. 在部署时传入API token参数',
+                    '3. 手动部署: 进入项目目录并运行 npm run deploy',
+                    '\n获取API token的步骤:',
+                    '1. 访问 https://developers.cloudflare.com/fundamentals/api/get-started/create-token/',
+                    '2. 创建一个具有Workers权限的API token'
+                ]
+                for message in error_messages:
+                    print(message)
+                    if log_callback:
+                        log_callback(message)
+                return False, None
             else:
-                print('API token已设置')
+                log_message = 'API token已设置'
+                print(log_message)
+                if log_callback:
+                    log_callback(log_message)
             
             # 设置环境变量，以便wrangler可以使用
             os.environ['CLOUDFLARE_API_TOKEN'] = api_token
             
             # 先安装依赖
-            print('正在安装依赖...')
-            if not self.install_dependencies(project_dir):
-                return False
+            log_message = '正在安装依赖...'
+            print(log_message)
+            if log_callback:
+                log_callback(log_message)
+            if not self.install_dependencies(project_dir, log_callback):
+                return False, None
             
             # 部署worker
-            print('正在部署到Cloudflare...')
-            result = subprocess.run(
+            log_message = '正在部署到Cloudflare...'
+            print(log_message)
+            if log_callback:
+                log_callback(log_message)
+            
+            # 实时输出部署过程
+            import sys
+            process = subprocess.Popen(
                 ['npx', 'wrangler', 'deploy'],
                 cwd=project_dir,
-                capture_output=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
                 text=True,
-                encoding='utf-8',  # 明确指定编码为UTF-8
-                shell=True  # 使用shell=True
+                encoding='utf-8',
+                shell=True
             )
             
-            print(f'npx wrangler deploy 退出码: {result.returncode}')
-            print(f'npx wrangler deploy 输出: {result.stdout}')
-            print(f'npx wrangler deploy 错误: {result.stderr}')
+            stdout = []
+            while True:
+                line = process.stdout.readline()
+                if not line:
+                    break
+                line = line.strip()
+                print(line)
+                if log_callback:
+                    log_callback(line)
+                sys.stdout.flush()
+                stdout.append(line)
             
-            if result.returncode == 0:
-                print('部署成功!')
-                print(result.stdout)
-                return True
+            stdout = ''.join(stdout)
+            returncode = process.wait()
+            
+            if returncode == 0:
+                success_message = '部署成功!'
+                print(success_message)
+                if log_callback:
+                    log_callback(success_message)
+                
+                # 提取部署的URL
+                deployed_url = None
+                
+                # 如果有自定义域名，优先使用自定义域名
+                if custom_domain:
+                    deployed_url = f'https://{custom_domain}'
+                else:
+                    # 从输出中提取workers.dev域名
+                    import re
+                    match = re.search(r'https://[a-zA-Z0-9.-]+\.workers\.dev', stdout)
+                    if match:
+                        deployed_url = match.group(0)
+                
+                url_message = f'部署的URL: {deployed_url}'
+                print(url_message)
+                if log_callback:
+                    log_callback(url_message)
+                return True, deployed_url
             else:
-                print('部署失败:')
-                print(result.stderr)
-                return False
+                error_message = '部署失败:'
+                print(error_message)
+                if log_callback:
+                    log_callback(error_message)
+                return False, None
         except FileNotFoundError as e:
-            print(f'错误: 系统找不到指定的文件: {str(e)}')
-            print('请确保Node.js已安装并添加到环境变量中。')
-            return False
+            error_message = f'错误: 系统找不到指定的文件: {str(e)}'
+            print(error_message)
+            if log_callback:
+                log_callback(error_message)
+            error_message = '请确保Node.js已安装并添加到环境变量中。'
+            print(error_message)
+            if log_callback:
+                log_callback(error_message)
+            return False, None
         except Exception as e:
-            print(f'部署过程中发生错误: {str(e)}')
+            error_message = f'部署过程中发生错误: {str(e)}'
+            print(error_message)
+            if log_callback:
+                log_callback(error_message)
             import traceback
             traceback.print_exc()
-            return False
+            return False, None
