@@ -138,36 +138,3 @@ class HTMLGenerator:
             raise PermissionError(f'没有权限写入文件: {output_file}')
         except Exception as e:
             raise Exception(f'保存文件失败: {str(e)}')
-    
-    def generate_cloudflare_worker(self, components: List[Component], title: str = 'pyHTML Page', head_config: Optional[Dict] = None) -> str:
-        html_content = self.generate_html(components, title, head_config)
-        
-        worker_code = f"""
-addEventListener('fetch', event => {{
-  event.respondWith(handleRequest(event.request))
-}})
-
-async function handleRequest(request) {{
-  // 生成HTML响应
-  return new Response(`{html_content.replace('`', '\\`')}`, {{
-    headers: {{
-      'Content-Type': 'text/html; charset=utf-8'
-    }}
-  }})
-}}
-"""
-        
-        return worker_code
-    
-    def save_cloudflare_worker(self, components: List[Component], output_path: str, title: str = 'pyHTML Page', head_config: Optional[Dict] = None):
-        worker_code = self.generate_cloudflare_worker(components, title, head_config)
-        output_file = Path(output_path)
-        try:
-            output_file.parent.mkdir(parents=True, exist_ok=True)
-            with open(output_file, 'w', encoding='utf-8') as f:
-                f.write(worker_code)
-            return str(output_file)
-        except PermissionError:
-            raise PermissionError(f'没有权限写入文件: {output_file}')
-        except Exception as e:
-            raise Exception(f'保存文件失败: {str(e)}')

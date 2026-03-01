@@ -17,6 +17,7 @@ except ImportError:
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from core import Project, ComponentLoader, HTMLGenerator, PreviewServer
+from core.cloudflare_worker import CloudflareWorkerGenerator
 from utils import get_components_dir
 
 
@@ -30,6 +31,7 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
         self.component_loader = ComponentLoader(str(get_components_dir()))
         self.component_loader.load_builtin_components()
         self.html_generator = HTMLGenerator()
+        self.cloudflare_worker_generator = CloudflareWorkerGenerator()
         self.preview_server = PreviewServer(8765)
         
         # 自动保存设置
@@ -201,7 +203,7 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
         left_layout.addWidget(icon_label)
         
         # 标题标签
-        title_label = QLabel('pyHTML - 报纸组件化HTML生成器')
+        title_label = QLabel('pyHTML - 组件化HTML生成器')
         title_label.setObjectName('TitleLabel')
         title_label.setStyleSheet('''
             .TitleLabel {
@@ -829,14 +831,127 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
                 QMessageBox.critical(self, '错误', f'无法导出HTML: {str(e)}')
     
     def export_cloudflare_worker(self):
-        file_path, _ = QFileDialog.getSaveFileName(self, '导出为Cloudflare Worker', '', 'JavaScript File (*.js)')
-        if file_path:
+        from PyQt5.QtWidgets import QFileDialog, QMessageBox, QDialog, QVBoxLayout, QLabel, QCheckBox, QPushButton, QHBoxLayout
+        import subprocess
+        
+        # 选择保存目录
+        directory = QFileDialog.getExistingDirectory(self, '选择Cloudflare Worker项目目录')
+        if not directory:
+            return
+        
+        try:
+            # 检查npm是否可用
             try:
-                self.html_generator.save_cloudflare_worker(self.project.components, file_path, self.project.title, self.project.head_config)
-                self.statusBar.showMessage(f'已导出: {file_path}')
-                QMessageBox.information(self, '成功', f'Cloudflare Worker已导出到: {file_path}\n\n使用方法:\n1. 登录Cloudflare控制台\n2. 进入Workers & Pages\n3. 创建新的Worker\n4. 粘贴生成的代码\n5. 部署并测试')
-            except Exception as e:
-                QMessageBox.critical(self, '错误', f'无法导出Cloudflare Worker: {str(e)}')
+                result = subprocess.run(
+                    ['npm', '--version'],
+                    capture_output=True,
+                    text=True,
+                    encoding='utf-8',  # 明确指定编码为UTF-8
+                    shell=True  # 使用shell=True
+                )
+                if result.returncode != 0:
+                    QMessageBox.warning(self, '警告', '系统找不到npm命令。请确保Node.js已安装并添加到环境变量中。\n\n将仅创建项目结构，不进行自动部署。')
+                    auto_deploy_enabled = False
+                else:
+                    # 检查CLOUDFLARE_API_TOKEN环境变量
+                    import os
+                    
+                    # 检查所有与CLOUD相关的环境变量
+                    
+                    api_token = os.environ.get('CLOUDFLARE_API_TOKEN')
+                    
+                    # 创建部署选项对话框
+                    dialog = QDialog(self)
+                    dialog.setWindowTitle('Cloudflare Worker部署选项')
+                    layout = QVBoxLayout(dialog)
+                    
+                    layout.addWidget(QLabel('请选择部署选项:'))
+                    
+                    # 自动部署选项
+                    auto_deploy = QCheckBox('自动部署到Cloudflare')
+                    layout.addWidget(auto_deploy)
+                    
+                    # Worker名称输入框
+                    worker_name_input = QLineEdit()
+                    worker_name_input.setPlaceholderText('Worker名称 (可选，默认使用网站标题)')
+                    if self.project.title:
+                        worker_name_input.setText(self.project.title)
+                    layout.addWidget(QLabel('Worker名称:'))
+                    layout.addWidget(worker_name_input)
+                    
+                    # 自定义域名输入框
+                    custom_domain_input = QLineEdit()
+                    custom_domain_input.setPlaceholderText('自定义域名 (可选，如: example.com)')
+                    layout.addWidget(QLabel('自定义域名:'))
+                    layout.addWidget(custom_domain_input)
+                    
+                    # API token输入框
+                    api_token_input = QLineEdit()
+                    api_token_input.setPlaceholderText('请输入Cloudflare API token (可选，优先使用环境变量)')
+                    api_token_input.setEchoMode(QLineEdit.Password)
+                    if api_token:
+                        api_token_input.setText(api_token)
+                        layout.addWidget(QLabel('CLOUDFLARE_API_TOKEN环境变量已设置，可以使用或修改。'))
+                    else:
+                        layout.addWidget(QLabel('未设置CLOUDFLARE_API_TOKEN环境变量，请输入API token。'))
+                    layout.addWidget(QLabel('API Token:'))
+                    layout.addWidget(api_token_input)
+                    
+                    # 按钮布局
+                    button_layout = QHBoxLayout()
+                    ok_button = QPushButton('确定')
+                    cancel_button = QPushButton('取消')
+                    button_layout.addWidget(ok_button)
+                    button_layout.addWidget(cancel_button)
+                    layout.addLayout(button_layout)
+                    
+                    # 连接信号
+                    ok_button.clicked.connect(dialog.accept)
+                    cancel_button.clicked.connect(dialog.reject)
+                    
+                    if dialog.exec_() != QDialog.Accepted:
+                        return
+                    
+                    auto_deploy_enabled = auto_deploy.isChecked()
+                    user_api_token = api_token_input.text().strip()
+                    # 如果用户输入了API token，优先使用用户输入的
+                    if user_api_token:
+                        api_token = user_api_token
+                    
+                    # 获取用户输入的Worker名称和自定义域名
+                    worker_name = worker_name_input.text().strip()
+                    custom_domain = custom_domain_input.text().strip()
+            except FileNotFoundError:
+                QMessageBox.warning(self, '警告', '系统找不到npm命令。请确保Node.js已安装并添加到环境变量中。\n\n将仅创建项目结构，不进行自动部署。')
+                auto_deploy_enabled = False
+            
+            # 创建Worker项目
+            project_path = self.cloudflare_worker_generator.create_worker_project(
+                directory,
+                self.project.components,
+                self.project.title,
+                self.project.head_config,
+                worker_name,
+                custom_domain
+            )
+            
+            if auto_deploy_enabled:
+                # 自动部署
+                self.statusBar.showMessage('正在部署到Cloudflare...')
+                success = self.cloudflare_worker_generator.deploy_worker(project_path, api_token)
+                if success:
+                    self.statusBar.showMessage('部署成功!')
+                    QMessageBox.information(self, '成功', f'Cloudflare Worker已成功部署!\n\n项目目录: {project_path}')
+                else:
+                    self.statusBar.showMessage('部署失败')
+                    QMessageBox.warning(self, '部署失败', f'Cloudflare Worker项目已创建，但部署失败。\n\n项目目录: {project_path}\n\n请检查错误信息并手动部署。')
+            else:
+                # 仅创建项目
+                self.statusBar.showMessage(f'已创建Cloudflare Worker项目: {project_path}')
+                QMessageBox.information(self, '成功', f'Cloudflare Worker项目已创建:\n\n{project_path}\n\n使用方法:\n1. 进入项目目录: cd {project_path}\n2. 安装依赖: npm install\n3. 本地测试: npm run dev\n4. 部署到Cloudflare: npm run deploy')
+                
+        except Exception as e:
+            QMessageBox.critical(self, '错误', f'无法创建Cloudflare Worker项目: {str(e)}')
     
     def toggle_preview(self):
         try:

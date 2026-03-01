@@ -5,8 +5,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 
 def main():
-    print('pyHTML - 报纸组件化HTML生成器')
-    print('版本: 0.2.1')
+    print('pyHTML - 组件化HTML生成器')
+    print('版本: 0.3.1')
     print()
     
     try:
