@@ -1,0 +1,42 @@
+{
+  "name": "audio",
+  "display_name": "音频条",
+  "description": "音频播放组件",
+  "version": "1.0.0",
+  "fields": [
+    {
+      "name": "music",
+      "type": "music",
+      "label": "音频",
+      "default": "",
+      "placeholder": "请输入音频URL或网易云歌曲ID"
+    },
+    {
+      "name": "autoplay",
+      "type": "boolean",
+      "label": "自动播放",
+      "default": false
+    },
+    {
+      "name": "loop",
+      "type": "boolean",
+      "label": "循环播放",
+      "default": false
+    },
+    {
+      "name": "controls",
+      "type": "boolean",
+      "label": "显示 controls",
+      "default": true
+    },
+    {
+      "name": "width",
+      "type": "number",
+      "label": "宽度（像素）",
+      "default": 300,
+      "min": 100,
+      "max": 800,
+      "step": 10
+    }
+  ]
+}

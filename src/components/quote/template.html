@@ -1,4 +1,4 @@
-<blockquote class="quote-component" style="border-left-color: {{ border_color }}; background-color: {{ bg_color }}; color: {{ text_color }}; font-family: {{ font_family }}; font-size: {{ font_family_size }}px;">
+<blockquote class="quote-component" style="border-left-color: {{ border_color }}; background-color: {{ bg_color }}; color: {{ text_color }}; font-family: {{ font_family }}; font-size: {{ font_family_size }}px; text-align: {{ alignment }};">
   <p class="quote-text">{{ text | replace('\n', '<br>') }}</p>
   {% if author %}
   <footer class="quote-author">— {{ author }}</footer>

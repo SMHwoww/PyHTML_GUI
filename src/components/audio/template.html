@@ -1,0 +1,17 @@
+<div class="audio-component" style="width: {{ width }}px;">
+  {% if music %}
+  <audio
+    src="{{ music }}"
+    {% if autoplay %}autoplay{% endif %}
+    {% if loop %}loop{% endif %}
+    {% if controls %}controls{% endif %}
+    style="width: 100%;"
+  >
+    您的浏览器不支持音频播放。
+  </audio>
+  {% else %}
+  <div style="text-align: center; padding: 20px; color: #999; border: 1px dashed #ddd; border-radius: 4px;">
+    请输入音频URL或网易云歌曲ID
+  </div>
+  {% endif %}
+</div>

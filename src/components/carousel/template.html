@@ -1,4 +1,4 @@
-<div class="carousel-container" id="carousel-{{ component_id }}" style="max-width: {{ width }}px; height: {{ height }}px; padding-top: 0;">
+<div class="carousel-container" id="carousel-{{ component_id }}" style="max-width: {{ width }}px; height: {{ height }}px; padding-top: 0; text-align: {{ alignment }};">
     <div class="carousel-slide">
         {% for image in images.split('\n') if image.strip() %}
         <div class="carousel-item {% if loop.first %}active{% endif %}">

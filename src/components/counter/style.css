@@ -1,0 +1,27 @@
+.counter-component {
+  display: inline-block;
+}
+
+.counter-container {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.counter-btn {
+  transition: all 0.2s ease;
+}
+
+.counter-btn:hover {
+  transform: scale(1.05);
+  opacity: 0.9;
+}
+
+.counter-btn:active {
+  transform: scale(0.95);
+}
+
+.counter-value {
+  font-weight: bold;
+  user-select: none;
+}

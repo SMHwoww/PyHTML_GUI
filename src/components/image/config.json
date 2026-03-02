@@ -5,11 +5,11 @@
   "version": "1.0.0",
   "fields": [
     {
-      "name": "src",
+      "name": "picture",
       "type": "string",
-      "label": "图片URL",
+      "label": "图片",
       "default": "https://picui.ogmua.cn/s1/2026/02/27/69a15d3503164.webp",
-      "placeholder": "请输入图片URL"
+      "placeholder": "请输入图片URL或点击上传"
     },
     {
       "name": "alt",

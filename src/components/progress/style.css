@@ -1,0 +1,16 @@
+.progress-component {
+  width: 100%;
+  margin: 10px 0;
+}
+
+.progress-component .progress-bar {
+  width: 100%;
+}
+
+.progress-component .progress-fill {
+  transition: width 0.3s ease;
+}
+
+.progress-component .progress-text {
+  user-select: none;
+}

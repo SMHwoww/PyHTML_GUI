@@ -1,0 +1,27 @@
+{
+  "name": "高对比度主题",
+  "description": "高对比度主题，适合视觉障碍用户",
+  "author": "PyHTML Team",
+  "version": "1.0",
+  "colors": {
+    "primary": "#0000ff",
+    "secondary": "#000000",
+    "background": "#ffffff",
+    "text": "#000000",
+    "text_light": "#ffffff",
+    "border": "#000000",
+    "hover": "#0000cc",
+    "pressed": "#000099",
+    "error": "#ff0000",
+    "success": "#008000",
+    "warning": "#ff8000",
+    "info": "#0000ff"
+  },
+  "fonts": {
+    "family": "Microsoft YaHei",
+    "size": 14
+  },
+  "styles": {
+    "label": "font-size: 14px; font-weight: bold;"
+  }
+}

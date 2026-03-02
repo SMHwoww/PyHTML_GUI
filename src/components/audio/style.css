@@ -1,0 +1,53 @@
+.audio-component {
+  margin: 10px 0;
+  border-radius: 4px;
+  overflow: hidden;
+  background-color: #f5f5f5;
+  padding: 10px;
+}
+
+.audio-component audio {
+  border-radius: 4px;
+  outline: none;
+}
+
+.audio-component audio::-webkit-media-controls-panel {
+  background-color: #f5f5f5;
+  border-radius: 4px;
+}
+
+.audio-component audio::-webkit-media-controls-play-button {
+  background-color: #4CAF50;
+  border-radius: 50%;
+  color: white;
+}
+
+.audio-component audio::-webkit-media-controls-play-button:hover {
+  background-color: #45a049;
+}
+
+.audio-component audio::-webkit-media-controls-volume-slider {
+  background-color: #ddd;
+  border-radius: 10px;
+  height: 4px;
+}
+
+.audio-component audio::-webkit-media-controls-volume-slider::-webkit-slider-thumb {
+  background-color: #4CAF50;
+  border-radius: 50%;
+  width: 12px;
+  height: 12px;
+}
+
+.audio-component audio::-webkit-media-controls-timeline {
+  background-color: #ddd;
+  border-radius: 10px;
+  height: 4px;
+}
+
+.audio-component audio::-webkit-media-controls-timeline::-webkit-slider-thumb {
+  background-color: #4CAF50;
+  border-radius: 50%;
+  width: 12px;
+  height: 12px;
+}

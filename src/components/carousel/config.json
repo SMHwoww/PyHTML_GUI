@@ -51,6 +51,17 @@
       "default": 450,
       "min": 100,
       "max": 800
+    },
+    {
+      "name": "alignment",
+      "type": "select",
+      "label": "对齐方式",
+      "default": "center",
+      "options": [
+        {"value": "left", "label": "左对齐"},
+        {"value": "center", "label": "居中"},
+        {"value": "right", "label": "右对齐"}
+      ]
     }
   ]
 }

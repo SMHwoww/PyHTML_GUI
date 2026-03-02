@@ -1,0 +1,94 @@
+<div class="progress-component" id="progress-{{ component_id }}" data-hide-after-animation="{{ hide_after_animation }}" data-percentage="{{ percentage }}" data-animation-duration="{{ animation_duration }}">
+  <div 
+    class="progress-bar" 
+    style="
+      height: {{ height }}px;
+      background-color: {{ bg_color }};
+      border-radius: {{ border_radius }}px;
+      position: relative;
+      overflow: hidden;
+    "
+  >
+    <div 
+      class="progress-fill" 
+      style="
+        width: 0%;
+        height: 100%;
+        background-color: {{ color }};
+        border-radius: {{ border_radius }}px;
+        transition: width {{ animation_duration }}s ease;
+      "
+    ></div>
+    {% if show_text %}
+    <div 
+      class="progress-text" 
+      style="
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: {{ height * 0.6 }}px;
+        font-weight: bold;
+        color: #ffffff;
+        text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+      "
+    >
+      0%
+    </div>
+    {% endif %}
+  </div>
+</div>
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const progressComponent = document.getElementById('progress-{{ component_id }}');
+    if (progressComponent) {
+      const progressFill = progressComponent.querySelector('.progress-fill');
+      const progressText = progressComponent.querySelector('.progress-text');
+      const percentage = parseInt(progressComponent.dataset.percentage);
+      const hideAfterAnimation = progressComponent.dataset.hideAfterAnimation === 'True' || progressComponent.dataset.hideAfterAnimation === 'true';
+      const animationDuration = parseFloat(progressComponent.dataset.animationDuration) * 1000;
+      
+      // 数字动画
+      let currentPercentage = 0;
+      const startTime = Date.now();
+      
+      function updateProgress() {
+        const elapsed = Date.now() - startTime;
+        const progress = Math.min(elapsed / animationDuration, 1);
+        currentPercentage = Math.floor(progress * percentage);
+        
+        if (progressText) {
+          progressText.textContent = currentPercentage + '%';
+        }
+        
+        if (progress < 1) {
+          requestAnimationFrame(updateProgress);
+        }
+      }
+      
+      // 触发动画
+      setTimeout(() => {
+        if (progressFill) {
+          progressFill.style.width = percentage + '%';
+          updateProgress();
+        }
+      }, 100);
+      
+      // 检查是否需要在动画完成后隐藏
+      if (hideAfterAnimation) {
+        setTimeout(() => {
+          progressComponent.style.opacity = '0';
+          progressComponent.style.height = '0';
+          progressComponent.style.margin = '0';
+          progressComponent.style.padding = '0';
+          progressComponent.style.overflow = 'hidden';
+          progressComponent.style.transition = 'all 0.5s ease';
+        }, animationDuration);
+      }
+    }
+  });
+</script>

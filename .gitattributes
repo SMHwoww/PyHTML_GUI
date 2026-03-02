@@ -1,2 +1,5 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Exclude .vscode folder
+.vscode/ -text -filter -merge -diff

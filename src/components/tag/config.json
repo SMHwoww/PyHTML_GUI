@@ -1,0 +1,72 @@
+{
+  "name": "tag",
+  "display_name": "标签",
+  "description": "一个可配置的标签组件",
+  "version": "1.0.0",
+  "author": "PyHTML GUI",
+  "fields": [
+    {
+      "name": "text",
+      "type": "string",
+      "label": "标签文本",
+      "default": "标签",
+      "placeholder": "请输入标签文本"
+    },
+    {
+      "name": "color",
+      "type": "color",
+      "label": "标签颜色",
+      "default": "#4CAF50"
+    },
+    {
+      "name": "text_color",
+      "type": "color",
+      "label": "文本颜色",
+      "default": "#ffffff"
+    },
+    {
+      "name": "font_size",
+      "type": "number",
+      "label": "字体大小",
+      "default": 14,
+      "min": 8,
+      "max": 32,
+      "step": 1
+    },
+    {
+      "name": "padding",
+      "type": "number",
+      "label": "内边距",
+      "default": 8,
+      "min": 2,
+      "max": 20,
+      "step": 1
+    },
+    {
+      "name": "border_radius",
+      "type": "number",
+      "label": "圆角大小",
+      "default": 16,
+      "min": 0,
+      "max": 50,
+      "step": 1
+    },
+    {
+      "name": "show_close",
+      "type": "boolean",
+      "label": "显示关闭按钮",
+      "default": false
+    },
+    {
+      "name": "alignment",
+      "type": "select",
+      "label": "对齐方式",
+      "default": "left",
+      "options": [
+        {"value": "left", "label": "左对齐"},
+        {"value": "center", "label": "居中"},
+        {"value": "right", "label": "右对齐"}
+      ]
+    }
+  ]
+}

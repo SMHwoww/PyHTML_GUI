@@ -19,6 +19,7 @@ class Project:
             'links': [],
             'scripts': []
         }
+        self.theme = 'default'
     
     def add_component(self, component: Component, index: Optional[int] = None):
         if index is None:
@@ -46,7 +47,8 @@ class Project:
             'name': self.name,
             'title': self.title,
             'head_config': self.head_config,
-            'components': [comp.to_dict() for comp in self.components]
+            'components': [comp.to_dict() for comp in self.components],
+            'theme': self.theme
         }
     
     @classmethod
@@ -62,6 +64,7 @@ class Project:
             'links': [],
             'scripts': []
         })
+        project.theme = data.get('theme', 'default')
         for comp_data in data.get('components', []):
             try:
                 if component_loader and 'component_name' in comp_data:

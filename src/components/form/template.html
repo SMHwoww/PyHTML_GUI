@@ -1,6 +1,7 @@
 <form class="form" action="{{ form_action }}" method="{{ form_method }}" style="width: {{ width }}px; background-color: {{ bg_color }}; color: {{ text_color }}; font-family: {{ font }}; padding: 20px; border-radius: 8px;">
+  <div style="text-align: {{ alignment }};">
   <h2 style="margin-top: 0;">{{ title }}</h2>
-  
+  <div style="display: inline-block; text-align: left;">
   {% if show_name %}
   <div class="form-group" style="margin-bottom: 15px;">
     <label for="name" style="display: block; margin-bottom: 5px;">姓名:</label>
@@ -32,4 +33,6 @@
   <button type="submit" style="background-color: {{ button_color }}; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-family: {{ font }};">
     {{ submit_text }}
   </button>
+  </div>
+  </div>
 </form>

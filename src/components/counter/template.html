@@ -1,0 +1,61 @@
+<div class="counter-component" style="text-align: {{ alignment }};">
+  <div 
+    class="counter-container" 
+    style="
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    "
+  >
+    <button 
+      class="counter-btn counter-decrease" 
+      style="
+        width: {{ button_size }}px;
+        height: {{ button_size }}px;
+        background-color: {{ button_color }};
+        color: white;
+        border: none;
+        border-radius: 50%;
+        font-size: {{ button_size * 0.6 }}px;
+        font-weight: bold;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      "
+    >
+      -
+    </button>
+    <div 
+      class="counter-value" 
+      style="
+        font-size: {{ button_size * 0.8 }}px;
+        font-weight: bold;
+        color: {{ text_color }};
+        min-width: {{ button_size * 1.5 }}px;
+        text-align: center;
+      "
+    >
+      {{ initial_value }}
+    </div>
+    <button 
+      class="counter-btn counter-increase" 
+      style="
+        width: {{ button_size }}px;
+        height: {{ button_size }}px;
+        background-color: {{ button_color }};
+        color: white;
+        border: none;
+        border-radius: 50%;
+        font-size: {{ button_size * 0.6 }}px;
+        font-weight: bold;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      "
+    >
+      +
+    </button>
+  </div>
+</div>

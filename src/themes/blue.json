@@ -1,0 +1,25 @@
+{
+  "name": "蓝色主题",
+  "description": "蓝色为主色调的主题",
+  "author": "PyHTML Team",
+  "version": "1.0",
+  "colors": {
+    "primary": "#2196f3",
+    "secondary": "#1976d2",
+    "background": "#f5f5f5",
+    "text": "#333333",
+    "text_light": "#ffffff",
+    "border": "#dddddd",
+    "hover": "#1976d2",
+    "pressed": "#1565c0",
+    "error": "#f44336",
+    "success": "#4caf50",
+    "warning": "#ff9800",
+    "info": "#2196f3"
+  },
+  "fonts": {
+    "family": "Microsoft YaHei",
+    "size": 12
+  },
+  "styles": {}
+}

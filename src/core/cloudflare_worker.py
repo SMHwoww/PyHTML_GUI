@@ -190,7 +190,7 @@ logs
             return False
         
         try:
-            log_message = '正在安装依赖...'
+            log_message = '正在安装项目依赖...'
             print(log_message)
             if log_callback:
                 log_callback(log_message)
@@ -288,7 +288,7 @@ logs
             os.environ['CLOUDFLARE_API_TOKEN'] = api_token
             
             # 先安装依赖
-            log_message = '正在安装依赖...'
+            log_message = '正在安装wrangler依赖...'
             print(log_message)
             if log_callback:
                 log_callback(log_message)
@@ -339,7 +339,7 @@ logs
                 
                 # 如果有自定义域名，优先使用自定义域名
                 if custom_domain:
-                    deployed_url = f'https://{custom_domain}'
+                    deployed_url = custom_domain
                 else:
                     # 从输出中提取workers.dev域名
                     import re

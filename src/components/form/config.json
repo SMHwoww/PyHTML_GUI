@@ -87,6 +87,17 @@
         {"value": "get", "label": "GET"},
         {"value": "post", "label": "POST"}
       ]
+    },
+    {
+      "name": "alignment",
+      "type": "select",
+      "label": "对齐方式",
+      "default": "left",
+      "options": [
+        {"value": "left", "label": "左对齐"},
+        {"value": "center", "label": "居中"},
+        {"value": "right", "label": "右对齐"}
+      ]
     }
   ]
 }

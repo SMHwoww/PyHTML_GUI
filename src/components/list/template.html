@@ -1,11 +1,11 @@
 {% if list_type == '有序列表' %}
-<ol style="color: {{ text_color }}; font-family: {{ font }}; line-height: {{ spacing + 16 }}px;">
+<ol style="color: {{ text_color }}; font-family: {{ font }}; line-height: {{ spacing + 16 }}px; text-align: {{ alignment }};">
   {% for item in items.split('\n') %}
   <li>{{ item.strip() }}</li>
   {% endfor %}
 </ol>
 {% else %}
-<ul style="color: {{ text_color }}; font-family: {{ font }}; line-height: {{ spacing + 16 }}px;">
+<ul style="color: {{ text_color }}; font-family: {{ font }}; line-height: {{ spacing + 16 }}px; text-align: {{ alignment }};">
   {% for item in items.split('\n') %}
   <li>{{ item.strip() }}</li>
   {% endfor %}
