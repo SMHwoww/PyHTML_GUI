@@ -5,6 +5,7 @@ import time
 import threading
 import webbrowser
 from pathlib import Path
+from typing import Optional, Dict, Any, List, Callable, Tuple
 
 try:
     from PyQt5.QtWidgets import (
@@ -12,7 +13,7 @@ try:
         QListWidget, QListWidgetItem, QSplitter, QFileDialog, QMessageBox,
         QAction, QStatusBar, QLabel, QPushButton, QLineEdit, QComboBox, QColorDialog,
         QSpinBox, QDoubleSpinBox, QCheckBox, QTextEdit, QFontComboBox, QMenu,
-        QShortcut, QDialog, QInputDialog
+        QShortcut, QDialog, QInputDialog, QAbstractItemView
     )
     from PyQt5.QtCore import Qt, QTimer, QRect, QEvent, QThread, pyqtSignal, QCoreApplication
     from PyQt5.QtGui import QColor, QFont, QPainter, QRegion, QIcon, QPixmap, QKeySequence, QPainterPath
@@ -27,6 +28,8 @@ from core.cloudflare_worker import CloudflareWorkerGenerator
 from core.theme import ThemeManager, Theme
 from core.ai_client import AIDialogWidget, AIApiConfigDialog, AIClient
 from core.prompt_generator import PromptGenerator
+from core.image_manager import ImageManager
+from gui.image_manager_gui import ImageSettingsDialog, ImageManagementDialog
 from utils import get_components_dir
 
 
@@ -42,12 +45,45 @@ COLOR_NAME_MAP = {
 }
 
 
+DEFAULT_COLORS = {
+    'primary': '#4CAF50',
+    'secondary': '#333333',
+    'background': '#f0f0f0',
+    'text': '#333333',
+    'text_light': '#ffffff',
+    'border': '#dddddd',
+    'hover': '#45a049',
+    'pressed': '#3d8b40'
+}
+
+
+class StyleConstants:
+    TITLE_BAR_HEIGHT = 30
+    MENU_BAR_HEIGHT = 25
+    PRIMARY_COLOR = '#4CAF50'
+    DARK_BG = '#333'
+    LIGHT_BG = 'rgba(255, 255, 255, 0.7)'
+    BORDER_COLOR = '#ddd'
+    TEXT_COLOR_DARK = '#333333'
+    TEXT_COLOR_LIGHT = '#ffffff'
+    TEXT_COLOR_MUTED = '#555'
+
+
 class MainWindow(QMainWindow if HAS_PYQT else object):
     def __init__(self):
         if not HAS_PYQT:
             raise ImportError('PyQt5 is required for GUI')
         
         super().__init__()
+        self._initialize_core_services()
+        self._initialize_caches()
+        self._initialize_timers()
+        self._initialize_state()
+        self.init_ui()
+        self.refresh_component_library()
+        self.add_shortcuts()
+    
+    def _initialize_core_services(self) -> None:
         self.project = Project('Untitled')
         self.component_loader = ComponentLoader(str(get_components_dir()))
         self.component_loader.load_builtin_components()
@@ -55,10 +91,13 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
         self.cloudflare_worker_generator = CloudflareWorkerGenerator()
         self.preview_server = PreviewServer(8765)
         self.theme_manager = ThemeManager()
-        
-        self._background_pixmap_cache = None
-        self._background_path_cache = None
-        
+        self.image_manager = ImageManager()
+    
+    def _initialize_caches(self) -> None:
+        self._background_pixmap_cache: Optional[QPixmap] = None
+        self._background_path_cache: Optional[str] = None
+    
+    def _initialize_timers(self) -> None:
         self.auto_save_timer = QTimer(self)
         self.auto_save_timer.timeout.connect(self.auto_save)
         self.auto_save_interval = 30000
@@ -68,23 +107,26 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
         self.preview_timer.setSingleShot(True)
         self.preview_timer.timeout.connect(self.update_preview)
         self.preview_delay = 300
-        
-        self.copied_component = None
-        
-        self.init_ui()
-        self.refresh_component_library()
-        self.add_shortcuts()
     
-    def init_ui(self):
+    def _initialize_state(self) -> None:
+        self.copied_component: Optional[Dict[str, Any]] = None
+        self.drag_position: Optional[Any] = None
+    
+    def init_ui(self) -> None:
         self.setWindowFlags(Qt.FramelessWindowHint)
         self.setGeometry(100, 100, 1200, 800)
         
+        self._set_window_icon()
+        self._setup_main_layout()
+        self._setup_status_bar()
+        self.apply_theme()
+    
+    def _set_window_icon(self) -> None:
         icon_path = os.path.join(os.path.dirname(__file__), '..', '..', 'asset', 'icon.png')
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
-        
-        self.apply_theme()
-        
+    
+    def _setup_main_layout(self) -> None:
         main_widget = QWidget()
         main_layout = QVBoxLayout(main_widget)
         main_layout.setContentsMargins(0, 0, 0, 0)
@@ -95,33 +137,49 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
         main_layout.addWidget(self._create_central_content())
         
         self.setCentralWidget(main_widget)
-        
+    
+    def _setup_status_bar(self) -> None:
         self.statusBar = QStatusBar()
         self.setStatusBar(self.statusBar)
         self.statusBar.showMessage('就绪')
-        
-        self.setWindowRadius(10)
     
-    def _create_title_bar(self):
+    def _create_title_bar(self) -> QWidget:
         title_bar = QWidget()
         title_bar.setObjectName('CustomTitleBar')
-        title_bar.setStyleSheet('''
-            .CustomTitleBar {
-                background-color: #333;
-                color: white;
-                height: 30px;
-            }
-        ''')
-        title_bar.setFixedHeight(30)
+        title_bar.setFixedHeight(StyleConstants.TITLE_BAR_HEIGHT)
         
         title_layout = QHBoxLayout(title_bar)
         title_layout.setContentsMargins(5, 0, 5, 0)
         title_layout.setSpacing(0)
         
+        left_layout = self._create_title_bar_left()
+        title_layout.addLayout(left_layout)
+        title_layout.addStretch(1)
+        
+        button_layout = self._create_title_bar_buttons()
+        title_layout.addLayout(button_layout)
+        
+        self.drag_position = None
+        title_bar.mousePressEvent = self.title_bar_mouse_press_event
+        title_bar.mouseMoveEvent = self.title_bar_mouse_move_event
+        
+        return title_bar
+    
+    def _create_title_bar_left(self) -> QHBoxLayout:
         left_layout = QHBoxLayout()
         left_layout.setContentsMargins(5, 0, 5, 0)
         left_layout.setSpacing(10)
         
+        icon_label = self._create_title_bar_icon()
+        left_layout.addWidget(icon_label)
+        
+        title_label = QLabel('pyHTML - 组件化HTML生成器')
+        title_label.setObjectName('TitleLabel')
+        left_layout.addWidget(title_label)
+        
+        return left_layout
+    
+    def _create_title_bar_icon(self) -> QLabel:
         icon_label = QLabel()
         icon_path = os.path.join(os.path.dirname(__file__), '..', '..', 'asset', 'icon.png')
         if os.path.exists(icon_path):
@@ -132,31 +190,16 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
             icon_label.setText('H')
             icon_label.setStyleSheet('''
                 QLabel {
-                    color: white;
                     font-weight: bold;
                     font-size: 16px;
-                    background-color: #4CAF50;
                     border-radius: 10px;
                     min-width: 20px;
                     min-height: 20px;
                 }
             ''')
-        left_layout.addWidget(icon_label)
-        
-        title_label = QLabel('pyHTML - 组件化HTML生成器')
-        title_label.setObjectName('TitleLabel')
-        title_label.setStyleSheet('''
-            .TitleLabel {
-                color: white;
-                font-weight: bold;
-                font-size: 14px;
-            }
-        ''')
-        left_layout.addWidget(title_label)
-        
-        title_layout.addLayout(left_layout)
-        title_layout.addStretch(1)
-        
+        return icon_label
+    
+    def _create_title_bar_buttons(self) -> QHBoxLayout:
         button_layout = QHBoxLayout()
         button_layout.setContentsMargins(0, 0, 0, 0)
         button_layout.setSpacing(0)
@@ -170,111 +213,68 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
         close_button = self._create_title_button('×', self.close, is_close=True)
         button_layout.addWidget(close_button)
         
-        title_layout.addLayout(button_layout)
-        
-        self.drag_position = None
-        title_bar.mousePressEvent = self.title_bar_mouse_press_event
-        title_bar.mouseMoveEvent = self.title_bar_mouse_move_event
-        
-        return title_bar
+        return button_layout
     
-    def _create_title_button(self, text, callback, is_close=False):
+    def _create_title_button(self, text: str, callback: Callable, is_close: bool = False) -> QPushButton:
         btn = QPushButton(text)
         btn.setObjectName('TitleButton')
+        
         if is_close:
-            btn.setStyleSheet('''
-                .TitleButton {
-                    background-color: transparent;
-                    color: white;
-                    border: none;
-                    width: 30px;
-                    height: 30px;
-                    font-size: 16px;
-                }
-                .TitleButton:hover {
-                    background-color: rgba(255, 0, 0, 0.5);
-                }
-                .TitleButton:pressed {
-                    background-color: rgba(255, 0, 0, 0.7);
-                }
-            ''')
+            hover_bg = 'rgba(255, 0, 0, 0.5)'
+            pressed_bg = 'rgba(255, 0, 0, 0.7)'
         else:
-            btn.setStyleSheet('''
-                .TitleButton {
-                    background-color: transparent;
-                    color: white;
-                    border: none;
-                    width: 30px;
-                    height: 30px;
-                    font-size: 16px;
-                }
-                .TitleButton:hover {
-                    background-color: rgba(255, 255, 255, 0.1);
-                }
-                .TitleButton:pressed {
-                    background-color: rgba(255, 255, 255, 0.2);
-                }
-            ''')
+            hover_bg = 'rgba(255, 255, 255, 0.1)'
+            pressed_bg = 'rgba(255, 255, 255, 0.2)'
+        
+        btn.setStyleSheet('''
+            .TitleButton {
+                background-color: transparent;
+                border: none;
+                width: 30px;
+                height: 30px;
+                font-size: 16px;
+            }
+            .TitleButton:hover {
+                background-color: rgba(255, 255, 255, 0.1);
+            }
+            .TitleButton:pressed {
+                background-color: rgba(255, 255, 255, 0.2);
+            }
+        ''')
         btn.clicked.connect(callback)
         return btn
     
-    def _create_menu_bar(self):
+    def _create_menu_bar(self) -> QWidget:
         menubar = QWidget()
         menubar.setObjectName('CustomMenuBar')
-        menubar.setStyleSheet('''
-            .CustomMenuBar {
-                background-color: #333;
-                color: white;
-                padding: 2px 0;
-            }
-        ''')
-        menubar.setFixedHeight(25)
+        menubar.setFixedHeight(StyleConstants.MENU_BAR_HEIGHT)
         
         menu_layout = QHBoxLayout(menubar)
         menu_layout.setContentsMargins(5, 0, 5, 0)
         menu_layout.setSpacing(0)
         
-        file_menu = self._create_file_menu()
-        view_menu = self._create_view_menu()
-        ai_menu = self._create_ai_menu()
-        settings_menu = self._create_settings_menu()
+        menus = [
+            ('文件(&F)', self._create_file_menu()),
+            ('视图(&V)', self._create_view_menu()),
+            ('AI助手beta(&A)', self._create_ai_menu()),
+            ('图片(&I)', self._create_image_menu()),
+            ('设置(&S)', self._create_settings_menu())
+        ]
         
-        file_menu_button = QPushButton('文件(&F)')
-        file_menu_button.setMenu(file_menu)
-        menu_layout.addWidget(file_menu_button)
-        
-        view_menu_button = QPushButton('视图(&V)')
-        view_menu_button.setMenu(view_menu)
-        menu_layout.addWidget(view_menu_button)
-        
-        ai_menu_button = QPushButton('AI助手beta(&A)')
-        ai_menu_button.setMenu(ai_menu)
-        menu_layout.addWidget(ai_menu_button)
-        
-        settings_menu_button = QPushButton('设置(&S)')
-        settings_menu_button.setMenu(settings_menu)
-        menu_layout.addWidget(settings_menu_button)
+        for label, menu in menus:
+            button = QPushButton(label)
+            button.setMenu(menu)
+            menu_layout.addWidget(button)
         
         menu_layout.addStretch(1)
-        
         return menubar
     
-    def _create_file_menu(self):
-        menu = QMenu('文件(&F)', self)
-        menu.setStyleSheet('''
-            QMenu {
-                background-color: #333;
-                color: white;
-                padding: 2px 0;
-            }
-            QMenu::item {
-                color: white;
-                padding: 4px 10px;
-            }
-            QMenu::item:selected {
-                background-color: #4CAF50;
-            }
-        ''')
+    def _create_menu(self, title: str) -> QMenu:
+        menu = QMenu(title, self)
+        return menu
+    
+    def _create_file_menu(self) -> QMenu:
+        menu = self._create_menu('文件(&F)')
         
         new_action = QAction('新建项目(&N)', self)
         new_action.triggered.connect(self.new_project)
@@ -306,22 +306,8 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
         
         return menu
     
-    def _create_view_menu(self):
-        menu = QMenu('视图(&V)', self)
-        menu.setStyleSheet('''
-            QMenu {
-                background-color: #333;
-                color: white;
-                padding: 2px 0;
-            }
-            QMenu::item {
-                color: white;
-                padding: 4px 10px;
-            }
-            QMenu::item:selected {
-                background-color: #4CAF50;
-            }
-        ''')
+    def _create_view_menu(self) -> QMenu:
+        menu = self._create_menu('视图(&V)')
         
         preview_action = QAction('预览(&P)', self)
         preview_action.triggered.connect(self.toggle_preview)
@@ -329,22 +315,8 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
         
         return menu
     
-    def _create_ai_menu(self):
-        menu = QMenu('AI助手beta(&A)', self)
-        menu.setStyleSheet('''
-            QMenu {
-                background-color: #333;
-                color: white;
-                padding: 2px 0;
-            }
-            QMenu::item {
-                color: white;
-                padding: 4px 10px;
-            }
-            QMenu::item:selected {
-                background-color: #4CAF50;
-            }
-        ''')
+    def _create_ai_menu(self) -> QMenu:
+        menu = self._create_menu('AI助手beta(&A)')
         
         ai_dialog_action = QAction('打开AI对话(&D)', self)
         ai_dialog_action.triggered.connect(self.open_ai_dialog)
@@ -356,22 +328,51 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
         
         return menu
     
-    def _create_settings_menu(self):
-        menu = QMenu('设置(&S)', self)
-        menu.setStyleSheet('''
-            QMenu {
-                background-color: #333;
-                color: white;
-                padding: 2px 0;
-            }
-            QMenu::item {
-                color: white;
-                padding: 4px 10px;
-            }
-            QMenu::item:selected {
-                background-color: #4CAF50;
-            }
-        ''')
+    def _create_image_menu(self) -> QMenu:
+        menu = self._create_menu('图片(&I)')
+        
+        settings_action = QAction('图片设置(&M)', self)
+        settings_action.triggered.connect(self.open_image_settings)
+        menu.addAction(settings_action)
+        
+        image_manage_action = QAction('图片管理(&G)', self)
+        image_manage_action.triggered.connect(self.open_image_management)
+        menu.addAction(image_manage_action)
+        
+        return menu
+    
+    def _refresh_theme_menu(self) -> None:
+        """刷新主题菜单，确保新保存的主题能够在主题菜单中立即显示"""
+        # 重新加载主题
+        self.theme_manager.load_all_themes()
+        
+        # 找到主题菜单并刷新
+        for action in self.menuBar().actions():
+            if action.text() == '设置(&S)':
+                settings_menu = action.menu()
+                if settings_menu:
+                    for menu_action in settings_menu.actions():
+                        if menu_action.text() == '主题(&T)':
+                            theme_menu = menu_action.menu()
+                            if theme_menu:
+                                # 清空现有主题菜单项
+                                theme_menu.clear()
+                                
+                                # 重新添加主题菜单项
+                                themes = self.theme_manager.get_all_themes()
+                                for theme in themes:
+                                    theme_action = QAction(theme.name, self)
+                                    theme_action.triggered.connect(lambda checked, name=theme.name: self.change_theme(name))
+                                    theme_menu.addAction(theme_action)
+                                
+                                # 添加主题编辑器菜单项
+                                theme_editor_action = QAction('主题编辑器(&E)', self)
+                                theme_editor_action.triggered.connect(self.open_theme_editor)
+                                theme_menu.addAction(theme_editor_action)
+                                break
+    
+    def _create_settings_menu(self) -> QMenu:
+        menu = self._create_menu('设置(&S)')
         
         head_settings_action = QAction('Head设置(&H)', self)
         head_settings_action.triggered.connect(self.open_head_settings)
@@ -390,7 +391,7 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
         
         return menu
     
-    def _create_central_content(self):
+    def _create_central_content(self) -> QWidget:
         content_widget = QWidget()
         main_layout = QHBoxLayout(content_widget)
         
@@ -414,20 +415,25 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
         main_layout.addWidget(splitter)
         return content_widget
     
-    def _create_left_panel(self):
+    def _create_panel_widget(self, label_text: str) -> Tuple[QWidget, QVBoxLayout]:
         panel = QWidget()
-        panel.setStyleSheet('''
-            QWidget {
-                background-color: rgba(255, 255, 255, 0.7);
-                border: 1px solid #ddd;
+        panel.setStyleSheet(f'''
+            QWidget {{
+                background-color: {StyleConstants.LIGHT_BG};
+                border: none;
                 border-radius: 4px;
-            }
+            }}
         ''')
         layout = QVBoxLayout(panel)
         
-        label = QLabel('组件库 (双击添加)')
+        label = QLabel(label_text)
         label.setStyleSheet('background-color: transparent;')
         layout.addWidget(label)
+        
+        return panel, layout
+    
+    def _create_left_panel(self) -> QWidget:
+        panel, layout = self._create_panel_widget('组件库 (双击添加)')
         
         self.component_library = QListWidget()
         self.component_library.setStyleSheet('''
@@ -442,20 +448,8 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
         
         return panel
     
-    def _create_middle_panel(self):
-        panel = QWidget()
-        panel.setStyleSheet('''
-            QWidget {
-                background-color: rgba(255, 255, 255, 0.7);
-                border: 1px solid #ddd;
-                border-radius: 4px;
-            }
-        ''')
-        layout = QVBoxLayout(panel)
-        
-        label = QLabel('页面组件')
-        label.setStyleSheet('background-color: transparent;')
-        layout.addWidget(label)
+    def _create_middle_panel(self) -> QWidget:
+        panel, layout = self._create_panel_widget('页面组件')
         
         self.page_components = QListWidget()
         self.page_components.setStyleSheet('''
@@ -474,43 +468,31 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
         self.page_components.customContextMenuRequested.connect(self.show_context_menu)
         layout.addWidget(self.page_components)
         
-        button_layout = QHBoxLayout()
-        
-        move_up_button = QPushButton('上移')
-        move_up_button.clicked.connect(self.move_component_up)
-        button_layout.addWidget(move_up_button)
-        
-        move_down_button = QPushButton('下移')
-        move_down_button.clicked.connect(self.move_component_down)
-        button_layout.addWidget(move_down_button)
-        
-        export_button = QPushButton('导出HTML')
-        export_button.clicked.connect(self.export_html)
-        button_layout.addWidget(export_button)
-        
-        preview_button = QPushButton('预览')
-        preview_button.clicked.connect(self.toggle_preview)
-        button_layout.addWidget(preview_button)
-        
+        button_layout = self._create_middle_panel_buttons()
         layout.addLayout(button_layout)
         
         return panel
     
-    def _create_right_panel(self):
-        panel = QWidget()
-        panel.setStyleSheet('''
-            QWidget {
-                background-color: rgba(255, 255, 255, 0.7);
-                border: 1px solid #ddd;
-                border-radius: 4px;
-            }
-        ''')
-        layout = QVBoxLayout(panel)
+    def _create_middle_panel_buttons(self) -> QHBoxLayout:
+        button_layout = QHBoxLayout()
         
-        label = QLabel('属性编辑')
-        label.setStyleSheet('background-color: transparent;')
-        label.setAlignment(Qt.AlignTop | Qt.AlignLeft)
-        layout.addWidget(label)
+        buttons = [
+            ('上移', self.move_component_up),
+            ('下移', self.move_component_down),
+            ('导出HTML', self.export_html),
+            ('预览', self.toggle_preview)
+        ]
+        
+        for text, callback in buttons:
+            btn = QPushButton(text)
+            btn.setStyleSheet('color: black;')
+            btn.clicked.connect(callback)
+            button_layout.addWidget(btn)
+        
+        return button_layout
+    
+    def _create_right_panel(self) -> QWidget:
+        panel, layout = self._create_panel_widget('属性编辑')
         
         self.properties_panel = QWidget()
         self.properties_panel.setStyleSheet('background-color: transparent;')
@@ -519,69 +501,50 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
         layout.addWidget(self.properties_panel)
         
         layout.addStretch(1)
-        
         self.clear_properties_panel()
         
         return panel
     
-    def apply_theme(self):
+    def apply_theme(self) -> None:
         stylesheet = self.theme_manager.get_current_stylesheet()
         self.setStyleSheet(stylesheet)
         self._background_pixmap_cache = None
         self._background_path_cache = None
         self.update()
     
-    def setWindowRadius(self, radius):
-        """设置窗口圆角，避免渲染问题"""
-        if self.isMaximized():
-            self.setMask(QRegion())
-            return
-        
-        try:
-            path = QPainterPath()
-            rect = self.rect()
-            if rect.width() > 0 and rect.height() > 0:
-                path.addRoundedRect(0, 0, rect.width(), rect.height(), radius, radius)
-                region = QRegion(path.toFillPolygon())
-                self.setMask(region)
-        except Exception:
-            self.setMask(QRegion())
-    
-    def title_bar_mouse_press_event(self, event):
+    def title_bar_mouse_press_event(self, event: QEvent) -> None:
         if event.button() == Qt.LeftButton:
             self.drag_position = event.globalPos() - self.frameGeometry().topLeft()
             event.accept()
     
-    def title_bar_mouse_move_event(self, event):
+    def title_bar_mouse_move_event(self, event: QEvent) -> None:
         if event.buttons() == Qt.LeftButton and self.drag_position:
             self.move(event.globalPos() - self.drag_position)
             event.accept()
     
-    def toggle_maximize(self):
+    def toggle_maximize(self) -> None:
         if self.isMaximized():
             self.showNormal()
             self.max_button.setText('□')
-            QTimer.singleShot(50, lambda: self.setWindowRadius(10))
         else:
-            self.setMask(QRegion())
             self.showMaximized()
             self.max_button.setText('▢')
     
-    def refresh_component_library(self):
+    def refresh_component_library(self) -> None:
         self.component_library.clear()
         for component in self.component_loader.get_all_components():
             item = QListWidgetItem(f'{component.display_name} ({component.name})')
             item.setData(Qt.UserRole, component.name)
             self.component_library.addItem(item)
     
-    def refresh_page_components(self):
+    def refresh_page_components(self) -> None:
         self.page_components.clear()
         for i, component in enumerate(self.project.components):
             item = QListWidgetItem(f'{i+1}. {component.display_name}')
             item.setData(Qt.UserRole, i)
             self.page_components.addItem(item)
     
-    def clear_layout_recursive(self, layout):
+    def clear_layout_recursive(self, layout: Optional[QVBoxLayout]) -> None:
         if layout is None:
             return
         while layout.count() > 0:
@@ -595,10 +558,10 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
             if widget:
                 widget.deleteLater()
     
-    def clear_properties_panel(self):
+    def clear_properties_panel(self) -> None:
         self.clear_layout_recursive(self.properties_layout)
     
-    def add_component_from_library(self, item):
+    def add_component_from_library(self, item: QListWidgetItem) -> None:
         component_name = item.data(Qt.UserRole)
         component = self.component_loader.create_instance(component_name)
         if component:
@@ -606,7 +569,7 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
             self.refresh_page_components()
             self.statusBar.showMessage(f'已添加组件: {component.display_name}')
     
-    def on_component_selected(self, current, previous):
+    def on_component_selected(self, current: Optional[QListWidgetItem], previous: Optional[QListWidgetItem]) -> None:
         if current:
             index = current.data(Qt.UserRole)
             component = self.project.components[index]
@@ -614,7 +577,7 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
         else:
             self.clear_properties_panel()
     
-    def remove_selected_component(self):
+    def remove_selected_component(self) -> None:
         current_item = self.page_components.currentItem()
         if current_item:
             index = current_item.data(Qt.UserRole)
@@ -623,7 +586,7 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
             self.clear_properties_panel()
             self.statusBar.showMessage('已删除组件')
     
-    def move_component_up(self):
+    def move_component_up(self) -> None:
         current_item = self.page_components.currentItem()
         if current_item:
             index = current_item.data(Qt.UserRole)
@@ -634,7 +597,7 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
                 self.statusBar.showMessage('组件已上移')
                 self.preview_timer.start(self.preview_delay)
     
-    def move_component_down(self):
+    def move_component_down(self) -> None:
         current_item = self.page_components.currentItem()
         if current_item:
             index = current_item.data(Qt.UserRole)
@@ -645,7 +608,7 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
                 self.statusBar.showMessage('组件已下移')
                 self.preview_timer.start(self.preview_delay)
     
-    def copy_component(self):
+    def copy_component(self) -> None:
         current_item = self.page_components.currentItem()
         if current_item:
             index = current_item.data(Qt.UserRole)
@@ -656,7 +619,7 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
             }
             self.statusBar.showMessage(f'已复制组件: {component.display_name}')
     
-    def paste_component(self):
+    def paste_component(self) -> None:
         if self.copied_component:
             component_name = self.copied_component['name']
             component = self.component_loader.create_instance(component_name)
@@ -668,7 +631,7 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
                 self.statusBar.showMessage(f'已粘贴组件: {component.display_name}')
                 self.preview_timer.start(self.preview_delay)
     
-    def add_shortcuts(self):
+    def add_shortcuts(self) -> None:
         delete_shortcut = QShortcut(QKeySequence(Qt.Key_Delete), self)
         delete_shortcut.activated.connect(self.remove_selected_component)
         
@@ -678,7 +641,7 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
         paste_shortcut = QShortcut(QKeySequence('Ctrl+V'), self)
         paste_shortcut.activated.connect(self.paste_component)
     
-    def show_context_menu(self, position):
+    def show_context_menu(self, position: Any) -> None:
         menu = QMenu()
         
         copy_action = menu.addAction('复制 (Ctrl+C)')
@@ -695,51 +658,57 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
         
         menu.exec_(self.page_components.mapToGlobal(position))
     
-    def drag_enter_event(self, event):
+    def drag_enter_event(self, event: QEvent) -> None:
         if event.source() == self.component_library or event.source() == self.page_components:
             event.accept()
         else:
             event.ignore()
     
-    def drop_event(self, event):
+    def drop_event(self, event: QEvent) -> None:
         if event.source() == self.component_library:
-            item = event.source().currentItem()
-            if item:
-                component_name = item.data(Qt.UserRole)
-                component = self.component_loader.create_instance(component_name)
-                if component:
-                    drop_pos = self.page_components.dropIndicatorPosition()
-                    if drop_pos == QListWidget.OnItem or drop_pos == QListWidget.OnItemButtom:
-                        current_item = self.page_components.itemAt(event.pos())
-                        if current_item:
-                            index = current_item.data(Qt.UserRole) + 1
-                            self.project.components.insert(index, component)
-                        else:
-                            self.project.add_component(component)
+            self._handle_component_library_drop(event)
+        elif event.source() == self.page_components:
+            self._handle_page_components_drop(event)
+    
+    def _handle_component_library_drop(self, event: QEvent) -> None:
+        item = event.source().currentItem()
+        if item:
+            component_name = item.data(Qt.UserRole)
+            component = self.component_loader.create_instance(component_name)
+            if component:
+                drop_pos = self.page_components.dropIndicatorPosition()
+                if drop_pos in (QListWidget.OnItem, QListWidget.OnItemButtom):
+                    current_item = self.page_components.itemAt(event.pos())
+                    if current_item:
+                        index = current_item.data(Qt.UserRole) + 1
+                        self.project.components.insert(index, component)
                     else:
                         self.project.add_component(component)
-                    self.refresh_page_components()
-                    self.statusBar.showMessage(f'已添加组件: {component.display_name}')
-                    self.preview_timer.start(self.preview_delay)
-        elif event.source() == self.page_components:
-            source_item = event.source().currentItem()
-            if source_item:
-                source_index = source_item.data(Qt.UserRole)
-                target_item = self.page_components.itemAt(event.pos())
-                if target_item:
-                    target_index = target_item.data(Qt.UserRole)
-                    component = self.project.components.pop(source_index)
-                    if source_index < target_index:
-                        self.project.components.insert(target_index, component)
-                    else:
-                        self.project.components.insert(target_index, component)
-                    self.refresh_page_components()
-                    new_index = target_index if source_index > target_index else target_index - 1
-                    self.page_components.setCurrentRow(new_index)
-                    self.statusBar.showMessage('组件位置已调整')
-                    self.preview_timer.start(self.preview_delay)
+                else:
+                    self.project.add_component(component)
+                self.refresh_page_components()
+                self.statusBar.showMessage(f'已添加组件: {component.display_name}')
+                self.preview_timer.start(self.preview_delay)
     
-    def update_properties_panel(self, component):
+    def _handle_page_components_drop(self, event: QEvent) -> None:
+        source_item = event.source().currentItem()
+        if source_item:
+            source_index = source_item.data(Qt.UserRole)
+            target_item = self.page_components.itemAt(event.pos())
+            if target_item:
+                target_index = target_item.data(Qt.UserRole)
+                component = self.project.components.pop(source_index)
+                if source_index < target_index:
+                    self.project.components.insert(target_index, component)
+                else:
+                    self.project.components.insert(target_index, component)
+                self.refresh_page_components()
+                new_index = target_index if source_index > target_index else target_index - 1
+                self.page_components.setCurrentRow(new_index)
+                self.statusBar.showMessage('组件位置已调整')
+                self.preview_timer.start(self.preview_delay)
+    
+    def update_properties_panel(self, component: Any) -> None:
         self.clear_properties_panel()
         
         component_label = QLabel(f'组件: {component.display_name}')
@@ -747,158 +716,276 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
         self.properties_layout.addWidget(component_label)
         
         for field in component.fields:
-            field_name = field['name']
-            field_type = field['type']
-            field_label = field['label']
-            field_value = component.get_value(field_name)
-            
-            field_container = QWidget()
-            field_layout = QVBoxLayout(field_container)
-            field_layout.setContentsMargins(0, 0, 0, 10)
-            
-            if field_type != 'boolean':
-                label = QLabel(field_label)
-                label.setStyleSheet('font-size: 12px; font-weight: normal; color: #555; margin-bottom: 4px;')
-                field_layout.addWidget(label)
-            
-            if field_type == 'string':
-                line_edit = QLineEdit()
-                line_edit.setText(str(field_value) if field_value is not None else '')
-                line_edit.setPlaceholderText(field.get('placeholder', ''))
-                line_edit.textChanged.connect(lambda text, fn=field_name, c=component: 
-                    (c.set_value(fn, text), self.preview_timer.start(self.preview_delay)))
-                field_layout.addWidget(line_edit)
-            
-            elif field_type == 'number':
-                step = field.get('step', 1)
-                if isinstance(step, float) or isinstance(field.get('default'), float):
-                    spin_box = QDoubleSpinBox()
-                    spin_box.setDecimals(2)
-                else:
-                    spin_box = QSpinBox()
-                
-                if 'min' in field:
-                    spin_box.setMinimum(field['min'])
-                if 'max' in field:
-                    spin_box.setMaximum(field['max'])
-                spin_box.setSingleStep(step)
-                
-                if field_value is not None:
-                    spin_box.setValue(field_value)
-                
-                spin_box.valueChanged.connect(lambda value, fn=field_name, c=component: 
-                    (c.set_value(fn, value), self.preview_timer.start(self.preview_delay)))
-                field_layout.addWidget(spin_box)
-            
-            elif field_type == 'boolean':
-                check_box = QCheckBox(field_label)
-                check_box.setChecked(bool(field_value))
-                check_box.stateChanged.connect(lambda state, fn=field_name, c=component: 
-                    (c.set_value(fn, state == Qt.Checked), self.preview_timer.start(self.preview_delay)))
-                field_layout.addWidget(check_box)
-            
-            elif field_type == 'textarea':
-                text_edit = QTextEdit()
-                text_edit.setPlainText(str(field_value) if field_value is not None else '')
-                text_edit.setPlaceholderText(field.get('placeholder', ''))
-                if 'rows' in field:
-                    text_edit.setMaximumHeight(field['rows'] * 20)
-                else:
-                    text_edit.setMaximumHeight(100)
-                text_edit.textChanged.connect(lambda fn=field_name, c=component, te=text_edit: 
-                    (c.set_value(fn, te.toPlainText()), self.preview_timer.start(self.preview_delay)))
-                field_layout.addWidget(text_edit)
-            
-            elif field_type == 'font':
-                font_layout = QHBoxLayout()
-                font_layout.setSpacing(5)
-                
-                font_combo = QFontComboBox()
-                font_combo.setMinimumWidth(150)
-                default_font = field.get('default', 'Arial')
-                font_combo.setCurrentFont(QFont(default_font))
-                font_combo.currentFontChanged.connect(lambda font, fn=field_name, c=component: 
-                    (c.set_value(fn, font.family()), self.preview_timer.start(self.preview_delay)))
-                font_layout.addWidget(font_combo)
-                
-                size_spin = QSpinBox()
-                size_spin.setRange(8, 72)
-                size_spin.setFixedWidth(60)
-                default_size = field.get('default_size', 16)
-                size_spin.setValue(default_size)
-                size_field_name = f'{field_name}_size'
-                size_spin.valueChanged.connect(lambda value, fn=size_field_name, c=component: 
-                    (c.set_value(fn, value), self.preview_timer.start(self.preview_delay)))
-                font_layout.addWidget(size_spin)
-                
-                field_layout.addLayout(font_layout)
-            
-            elif field_type == 'select':
-                combo_box = QComboBox()
-                for option in field['options']:
-                    combo_box.addItem(option['label'], option['value'])
-                index = combo_box.findData(field_value)
-                if index >= 0:
-                    combo_box.setCurrentIndex(index)
-                combo_box.currentIndexChanged.connect(lambda index, cb=combo_box, fn=field_name, c=component: 
-                    (c.set_value(fn, cb.itemData(index)), self.preview_timer.start(self.preview_delay)))
-                field_layout.addWidget(combo_box)
-            
-            elif field_type == 'color':
-                color_layout = QHBoxLayout()
-                color_layout.setSpacing(5)
-                
-                color_label = QLabel(field_value)
-                color_label.setFixedWidth(80)
-                color_label.setStyleSheet('border: 1px solid #ddd; padding: 2px 5px; border-radius: 3px;')
-                
-                color_button = QPushButton()
-                color_button.setFixedWidth(40)
-                color_button.setStyleSheet(f'background-color: {field_value}; border: 1px solid #ddd; border-radius: 3px;')
-                color_button.clicked.connect(lambda checked, fn=field_name, c=component, btn=color_button, lbl=color_label: 
-                    (self.open_color_dialog(fn, c, btn), lbl.setText(c.get_value(fn)), self.preview_timer.start(self.preview_delay)))
-                
-                color_layout.addWidget(color_label)
-                color_layout.addWidget(color_button)
-                field_layout.addLayout(color_layout)
-            
-            elif field_type == 'picture':
-                picture_layout = QVBoxLayout()
-                
-                picture_edit = QLineEdit()
-                picture_edit.setText(str(field_value) if field_value is not None else '')
-                picture_edit.setPlaceholderText('请输入图片URL或点击上传')
-                picture_edit.textChanged.connect(lambda text, fn=field_name, c=component: 
-                    (c.set_value(fn, text), self.preview_timer.start(self.preview_delay)))
-                picture_layout.addWidget(picture_edit)
-                
-                upload_button = QPushButton('上传图片')
-                upload_button.clicked.connect(lambda checked, fn=field_name, c=component, le=picture_edit: 
-                    (self.upload_picture(fn, c, le), self.preview_timer.start(self.preview_delay)))
-                picture_layout.addWidget(upload_button)
-                
-                field_layout.addLayout(picture_layout)
-            
-            elif field_type == 'music':
-                music_edit = QLineEdit()
-                music_edit.setText(str(field_value) if field_value is not None else '')
-                music_edit.setPlaceholderText('请输入音乐URL或网易云歌曲ID')
-                
-                def handle_music_input(text, fn=field_name, c=component):
-                    if text and not text.startswith('http'):
-                        music_url = f'https://music.163.com/song/media/outer/url?id={text}'
-                        c.set_value(fn, music_url)
-                        music_edit.setText(music_url)
-                    else:
-                        c.set_value(fn, text)
-                    self.preview_timer.start(self.preview_delay)
-                
-                music_edit.textChanged.connect(handle_music_input)
-                field_layout.addWidget(music_edit)
-            
-            self.properties_layout.addWidget(field_container)
+            self._add_field_to_properties_panel(field, component)
     
-    def export_html(self):
+    def _add_field_to_properties_panel(self, field: Dict[str, Any], component: Any) -> None:
+        field_name = field['name']
+        field_type = field['type']
+        field_label = field['label']
+        field_value = component.get_value(field_name)
+        
+        field_container = QWidget()
+        field_layout = QVBoxLayout(field_container)
+        field_layout.setContentsMargins(0, 0, 0, 10)
+        
+        if field_type != 'boolean':
+            label = QLabel(field_label)
+            label.setStyleSheet(f'font-size: 12px; font-weight: normal; color: {StyleConstants.TEXT_COLOR_MUTED}; margin-bottom: 4px;')
+            field_layout.addWidget(label)
+        
+        field_handlers = {
+            'string': self._add_string_field,
+            'number': self._add_number_field,
+            'boolean': self._add_boolean_field,
+            'textarea': self._add_textarea_field,
+            'font': self._add_font_field,
+            'select': self._add_select_field,
+            'color': self._add_color_field,
+            'picture': self._add_picture_field,
+            'pictures': self._add_pictures_field,
+            'music': self._add_music_field
+        }
+        
+        handler = field_handlers.get(field_type)
+        if handler:
+            handler(field_layout, field, field_value, field_name, component)
+        
+        self.properties_layout.addWidget(field_container)
+    
+    def _add_string_field(self, layout: QVBoxLayout, field: Dict[str, Any], field_value: Any, field_name: str, component: Any) -> None:
+        line_edit = QLineEdit()
+        line_edit.setText(str(field_value) if field_value is not None else '')
+        line_edit.setPlaceholderText(field.get('placeholder', ''))
+        line_edit.textChanged.connect(lambda text, fn=field_name, c=component: 
+            (c.set_value(fn, text), self.preview_timer.start(self.preview_delay)))
+        layout.addWidget(line_edit)
+    
+    def _add_number_field(self, layout: QVBoxLayout, field: Dict[str, Any], field_value: Any, field_name: str, component: Any) -> None:
+        step = field.get('step', 1)
+        if isinstance(step, float) or isinstance(field.get('default'), float):
+            spin_box = QDoubleSpinBox()
+            spin_box.setDecimals(2)
+        else:
+            spin_box = QSpinBox()
+        
+        if 'min' in field:
+            spin_box.setMinimum(field['min'])
+        if 'max' in field:
+            spin_box.setMaximum(field['max'])
+        spin_box.setSingleStep(step)
+        
+        if field_value is not None:
+            spin_box.setValue(field_value)
+        
+        spin_box.valueChanged.connect(lambda value, fn=field_name, c=component: 
+            (c.set_value(fn, value), self.preview_timer.start(self.preview_delay)))
+        layout.addWidget(spin_box)
+    
+    def _add_boolean_field(self, layout: QVBoxLayout, field: Dict[str, Any], field_value: Any, field_name: str, component: Any) -> None:
+        check_box = QCheckBox(field['label'])
+        check_box.setChecked(bool(field_value))
+        check_box.stateChanged.connect(lambda state, fn=field_name, c=component: 
+            (c.set_value(fn, state == Qt.Checked), self.preview_timer.start(self.preview_delay)))
+        layout.addWidget(check_box)
+    
+    def _add_textarea_field(self, layout: QVBoxLayout, field: Dict[str, Any], field_value: Any, field_name: str, component: Any) -> None:
+        text_edit = QTextEdit()
+        text_edit.setPlainText(str(field_value) if field_value is not None else '')
+        text_edit.setPlaceholderText(field.get('placeholder', ''))
+        if 'rows' in field:
+            text_edit.setMaximumHeight(field['rows'] * 20)
+        else:
+            text_edit.setMaximumHeight(100)
+        text_edit.textChanged.connect(lambda fn=field_name, c=component, te=text_edit: 
+            (c.set_value(fn, te.toPlainText()), self.preview_timer.start(self.preview_delay)))
+        layout.addWidget(text_edit)
+    
+    def _add_font_field(self, layout: QVBoxLayout, field: Dict[str, Any], field_value: Any, field_name: str, component: Any) -> None:
+        font_layout = QHBoxLayout()
+        font_layout.setSpacing(5)
+        
+        font_combo = QFontComboBox()
+        font_combo.setMinimumWidth(150)
+        default_font = field.get('default', 'Arial')
+        font_combo.setCurrentFont(QFont(default_font))
+        font_combo.currentFontChanged.connect(lambda font, fn=field_name, c=component: 
+            (c.set_value(fn, font.family()), self.preview_timer.start(self.preview_delay)))
+        font_layout.addWidget(font_combo)
+        
+        size_spin = QSpinBox()
+        size_spin.setRange(8, 72)
+        size_spin.setFixedWidth(60)
+        default_size = field.get('default_size', 16)
+        size_spin.setValue(default_size)
+        size_field_name = f'{field_name}_size'
+        size_spin.valueChanged.connect(lambda value, fn=size_field_name, c=component: 
+            (c.set_value(fn, value), self.preview_timer.start(self.preview_delay)))
+        font_layout.addWidget(size_spin)
+        
+        layout.addLayout(font_layout)
+    
+    def _add_select_field(self, layout: QVBoxLayout, field: Dict[str, Any], field_value: Any, field_name: str, component: Any) -> None:
+        combo_box = QComboBox()
+        # 设置硬编码样式，确保背景为白色，文字为黑色
+        combo_box.setStyleSheet('''
+            QComboBox {
+                background-color: white;
+                color: black;
+                border: 1px solid #ddd;
+                border-radius: 3px;
+                padding: 4px;
+                min-height: 20px;
+            }
+            QComboBox:hover {
+                border-color: #4CAF50;
+            }
+            QComboBox:focus {
+                border-color: #4CAF50;
+                outline: none;
+            }
+            QComboBox::drop-down {
+                border: none;
+                background: transparent;
+            }
+            QComboBox::down-arrow {
+                image: url(:/icons/down_arrow.png);
+                width: 12px;
+                height: 12px;
+            }
+        ''')
+        for option in field['options']:
+            combo_box.addItem(option['label'], option['value'])
+        index = combo_box.findData(field_value)
+        if index >= 0:
+            combo_box.setCurrentIndex(index)
+        combo_box.currentIndexChanged.connect(lambda index, cb=combo_box, fn=field_name, c=component: 
+            (c.set_value(fn, cb.itemData(index)), self.preview_timer.start(self.preview_delay)))
+        layout.addWidget(combo_box)
+    
+    def _add_color_field(self, layout: QVBoxLayout, field: Dict[str, Any], field_value: Any, field_name: str, component: Any) -> None:
+        color_layout = QHBoxLayout()
+        color_layout.setSpacing(5)
+        
+        color_label = QLabel(field_value)
+        color_label.setFixedWidth(80)
+        color_label.setStyleSheet(f'border: 1px solid {StyleConstants.BORDER_COLOR}; padding: 2px 5px; border-radius: 3px;')
+        
+        color_button = QPushButton()
+        color_button.setFixedWidth(40)
+        color_button.setStyleSheet(f'background-color: {field_value}; border: 1px solid {StyleConstants.BORDER_COLOR}; border-radius: 3px;')
+        color_button.clicked.connect(lambda checked, fn=field_name, c=component, btn=color_button, lbl=color_label: 
+            (self.open_color_dialog(fn, c, btn), lbl.setText(c.get_value(fn)), self.preview_timer.start(self.preview_delay)))
+        
+        color_layout.addWidget(color_label)
+        color_layout.addWidget(color_button)
+        layout.addLayout(color_layout)
+    
+    def _add_picture_field(self, layout: QVBoxLayout, field: Dict[str, Any], field_value: Any, field_name: str, component: Any) -> None:
+        picture_layout = QVBoxLayout()
+        
+        picture_edit = QLineEdit()
+        picture_edit.setText(str(field_value) if field_value is not None else '')
+        picture_edit.setPlaceholderText('请输入图片URL或点击上传')
+        picture_edit.textChanged.connect(lambda text, fn=field_name, c=component: 
+            (c.set_value(fn, text), self.preview_timer.start(self.preview_delay)))
+        picture_layout.addWidget(picture_edit)
+        
+        upload_button = QPushButton('上传图片')
+        upload_button.setStyleSheet('color: #333333;')  # 使用text_black颜色
+        upload_button.clicked.connect(lambda checked, fn=field_name, c=component, le=picture_edit: 
+            (self.upload_picture(fn, c, le), self.preview_timer.start(self.preview_delay)))
+        picture_layout.addWidget(upload_button)
+        
+        layout.addLayout(picture_layout)
+    
+    def _add_music_field(self, layout: QVBoxLayout, field: Dict[str, Any], field_value: Any, field_name: str, component: Any) -> None:
+        music_edit = QLineEdit()
+        music_edit.setText(str(field_value) if field_value is not None else '')
+        music_edit.setPlaceholderText('请输入音乐URL或网易云歌曲ID')
+        
+        def handle_music_input(text, fn=field_name, c=component):
+            if text and not text.startswith('http'):
+                music_url = f'https://music.163.com/song/media/outer/url?id={text}'
+                c.set_value(fn, music_url)
+                music_edit.setText(music_url)
+            else:
+                c.set_value(fn, text)
+            self.preview_timer.start(self.preview_delay)
+        
+        music_edit.textChanged.connect(handle_music_input)
+        layout.addWidget(music_edit)
+    
+    def _add_pictures_field(self, layout: QVBoxLayout, field: Dict[str, Any], field_value: Any, field_name: str, component: Any) -> None:
+        pictures_layout = QVBoxLayout()
+        
+        # 创建图片URL列表视图
+        pictures_list = QListWidget()
+        pictures_list.setSelectionMode(QAbstractItemView.SingleSelection)
+        pictures_list.setMaximumHeight(150)
+        # 启用拖放排序
+        pictures_list.setDragDropMode(QAbstractItemView.InternalMove)
+        pictures_list.setDefaultDropAction(Qt.MoveAction)
+        pictures_list.setDragEnabled(True)
+        pictures_list.setAcceptDrops(True)
+        pictures_list.setDropIndicatorShown(True)
+        # 启用编辑功能
+        pictures_list.setEditTriggers(QAbstractItemView.DoubleClicked | QAbstractItemView.EditKeyPressed)
+        
+        # 加载现有图片URL
+        current_value = str(field_value) if field_value is not None else ''
+        image_urls = [url.strip() for url in current_value.split('\n') if url.strip()]
+        for url in image_urls:
+            item = QListWidgetItem(url)
+            pictures_list.addItem(item)
+        
+        # 更新组件值的函数
+        def update_component_value():
+            urls = []
+            for i in range(pictures_list.count()):
+                urls.append(pictures_list.item(i).text())
+            component.set_value(field_name, '\n'.join(urls))
+            self.preview_timer.start(self.preview_delay)
+        
+        # 连接信号以更新值
+        pictures_list.itemChanged.connect(update_component_value)
+        pictures_list.model().rowsMoved.connect(update_component_value)
+        
+        # 添加图片按钮
+        button_layout = QHBoxLayout()
+        
+        upload_button = QPushButton('上传图片')
+        upload_button.setStyleSheet('color: #333333;')  # 使用text_black颜色
+        upload_button.clicked.connect(lambda checked, fn=field_name, c=component, pl=pictures_list: 
+            (self.upload_pictures_list(fn, c, pl), update_component_value()))
+        button_layout.addWidget(upload_button)
+        
+        # 添加URL按钮
+        add_url_button = QPushButton('添加URL')
+        add_url_button.setStyleSheet('color: #333333;')  # 使用text_black颜色
+        add_url_button.clicked.connect(lambda checked, pl=pictures_list: 
+            (self.add_image_url(pl), update_component_value()))
+        button_layout.addWidget(add_url_button)
+        
+        # 删除选中图片按钮
+        delete_button = QPushButton('删除选中')
+        delete_button.setStyleSheet('color: #333333;')  # 使用text_black颜色
+        delete_button.clicked.connect(lambda checked, pl=pictures_list: 
+            (pl.takeItem(pl.currentRow()), update_component_value()))
+        button_layout.addWidget(delete_button)
+        
+        # 清空所有按钮
+        clear_button = QPushButton('清空所有')
+        clear_button.setStyleSheet('color: #333333;')  # 使用text_black颜色
+        clear_button.clicked.connect(lambda checked, pl=pictures_list: 
+            (pl.clear(), update_component_value()))
+        button_layout.addWidget(clear_button)
+        
+        pictures_layout.addWidget(pictures_list)
+        pictures_layout.addLayout(button_layout)
+        
+        layout.addLayout(pictures_layout)
+    
+    def export_html(self) -> None:
         file_path, _ = QFileDialog.getSaveFileName(self, '导出HTML', '', 'HTML File (*.html)')
         if file_path:
             try:
@@ -908,18 +995,44 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
             except Exception as e:
                 QMessageBox.critical(self, '错误', f'无法导出HTML: {str(e)}')
     
-    def export_cloudflare_worker(self):
+    def export_cloudflare_worker(self) -> None:
         directory = QFileDialog.getExistingDirectory(self, '选择Cloudflare Worker项目目录')
         if not directory:
             return
         
         try:
             import subprocess
+            import json
+            from pathlib import Path
+            
             auto_deploy_enabled = False
             api_token = os.environ.get('CLOUDFLARE_API_TOKEN')
             worker_name = self.project.title
             custom_domain = ''
             
+            # 检查是否存在wrangler.jsonc文件
+            wrangler_config_path = Path(directory) / 'wrangler.jsonc'
+            if wrangler_config_path.exists():
+                try:
+                    # 读取并解析wrangler.jsonc文件
+                    with open(wrangler_config_path, 'r', encoding='utf-8') as f:
+                        # 跳过注释行
+                        lines = []
+                        for line in f:
+                            if not line.strip().startswith('//'):
+                                lines.append(line)
+                        config_content = ''.join(lines)
+                        config = json.loads(config_content)
+                        
+                        # 提取自定义域名
+                        if 'routes' in config:
+                            for route in config['routes']:
+                                if route.get('custom_domain'):
+                                    custom_domain = route.get('pattern', '')
+                                    break
+                except Exception as e:
+                    print(f'读取wrangler.jsonc文件时出错: {e}')
+                    
             try:
                 result = subprocess.run(
                     ['npm', '--version'],
@@ -936,6 +1049,8 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
                     layout.addWidget(QLabel('请选择部署选项:'))
                     
                     auto_deploy = QCheckBox('自动部署到Cloudflare')
+                    # 默认开启自动部署
+                    auto_deploy.setChecked(True)
                     layout.addWidget(auto_deploy)
                     
                     worker_name_input = QLineEdit()
@@ -947,6 +1062,9 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
                     
                     custom_domain_input = QLineEdit()
                     custom_domain_input.setPlaceholderText('自定义域名 (可选，如: example.com)')
+                    # 自动填充自定义域名
+                    if custom_domain:
+                        custom_domain_input.setText(custom_domain)
                     layout.addWidget(QLabel('自定义域名:'))
                     layout.addWidget(custom_domain_input)
                     
@@ -993,44 +1111,7 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
             )
             
             if auto_deploy_enabled:
-                log_dialog = QDialog(self)
-                log_dialog.setWindowTitle('部署日志')
-                log_dialog.setGeometry(300, 200, 800, 500)
-                log_layout = QVBoxLayout(log_dialog)
-                
-                log_text = QTextEdit()
-                log_text.setReadOnly(True)
-                log_text.setStyleSheet('font-family: Consolas, Monaco, monospace;')
-                log_layout.addWidget(log_text)
-                
-                close_button = QPushButton('关闭')
-                close_button.clicked.connect(log_dialog.close)
-                log_layout.addWidget(close_button)
-                
-                log_dialog.show()
-                
-                def log_callback(message):
-                    class LogEvent(QEvent):
-                        def __init__(self, message):
-                            super().__init__(QEvent.User)
-                            self.message = message
-                    QCoreApplication.postEvent(self, LogEvent(message))
-                
-                self.statusBar.showMessage('部署已开始...')
-                
-                def deploy_in_thread():
-                    success, deployed_url = self.cloudflare_worker_generator.deploy_worker(project_path, api_token, custom_domain, log_callback)
-                    class DeployFinishedEvent(QEvent):
-                        def __init__(self, success, project_path, deployed_url, log_dialog):
-                            super().__init__(QEvent.User)
-                            self.success = success
-                            self.project_path = project_path
-                            self.deployed_url = deployed_url
-                            self.log_dialog = log_dialog
-                    QCoreApplication.postEvent(self, DeployFinishedEvent(success, project_path, deployed_url, log_dialog))
-                
-                deploy_thread = threading.Thread(target=deploy_in_thread, daemon=True)
-                deploy_thread.start()
+                self._deploy_worker_with_log(project_path, api_token, custom_domain)
             else:
                 self.statusBar.showMessage(f'已创建Cloudflare Worker项目: {project_path}')
                 QMessageBox.information(self, '成功', f'Cloudflare Worker项目已创建:\n\n{project_path}')
@@ -1038,7 +1119,47 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
         except Exception as e:
             QMessageBox.critical(self, '错误', f'无法创建Cloudflare Worker项目: {str(e)}')
     
-    def toggle_preview(self):
+    def _deploy_worker_with_log(self, project_path: str, api_token: str, custom_domain: str) -> None:
+        log_dialog = QDialog(self)
+        log_dialog.setWindowTitle('部署日志')
+        log_dialog.setGeometry(300, 200, 800, 500)
+        log_layout = QVBoxLayout(log_dialog)
+        
+        log_text = QTextEdit()
+        log_text.setReadOnly(True)
+        log_text.setStyleSheet('font-family: Consolas, Monaco, monospace;')
+        log_layout.addWidget(log_text)
+        
+        close_button = QPushButton('关闭')
+        close_button.clicked.connect(log_dialog.close)
+        log_layout.addWidget(close_button)
+        
+        log_dialog.show()
+        
+        def log_callback(message):
+            class LogEvent(QEvent):
+                def __init__(self, message):
+                    super().__init__(QEvent.User)
+                    self.message = message
+            QCoreApplication.postEvent(self, LogEvent(message))
+        
+        self.statusBar.showMessage('部署已开始...')
+        
+        def deploy_in_thread():
+            success, deployed_url = self.cloudflare_worker_generator.deploy_worker(project_path, api_token, custom_domain, log_callback)
+            class DeployFinishedEvent(QEvent):
+                def __init__(self, success, project_path, deployed_url, log_dialog):
+                    super().__init__(QEvent.User)
+                    self.success = success
+                    self.project_path = project_path
+                    self.deployed_url = deployed_url
+                    self.log_dialog = log_dialog
+            QCoreApplication.postEvent(self, DeployFinishedEvent(success, project_path, deployed_url, log_dialog))
+        
+        deploy_thread = threading.Thread(target=deploy_in_thread, daemon=True)
+        deploy_thread.start()
+    
+    def toggle_preview(self) -> None:
         try:
             url = self.preview_server.start(self.project)
             self.preview_server.open_browser()
@@ -1046,7 +1167,7 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
         except Exception as e:
             QMessageBox.critical(self, '错误', f'无法启动预览: {str(e)}')
     
-    def open_color_dialog(self, field_name, component, button):
+    def open_color_dialog(self, field_name: str, component: Any, button: QPushButton) -> None:
         current_color = component.get_value(field_name)
         if not current_color:
             current_color = '#000000'
@@ -1054,66 +1175,122 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
         color = QColorDialog.getColor(QColor(current_color), self, '选择颜色')
         if color.isValid():
             component.set_value(field_name, color.name())
-            button.setStyleSheet(f'background-color: {color.name()}; border: 1px solid #ddd; border-radius: 3px;')
+            button.setStyleSheet(f'background-color: {color.name()}; border: 1px solid {StyleConstants.BORDER_COLOR}; border-radius: 3px;')
     
-    def upload_picture(self, field_name, component, line_edit):
+    def open_image_settings(self) -> None:
+        dialog = ImageSettingsDialog(self, self.image_manager)
+        dialog.exec_()
+    
+    def open_image_management(self) -> None:
+        dialog = ImageManagementDialog(self, self.image_manager)
+        dialog.exec_()
+    
+
+    
+    def upload_picture(self, field_name: str, component: Any, line_edit: QLineEdit) -> None:
         file_path, _ = QFileDialog.getOpenFileName(self, '选择图片', '', '图片文件 (*.jpg *.jpeg *.png *.gif *.webp)')
         if not file_path:
             return
         
         try:
-            import requests
-            
-            token_url = 'https://picui.cn/api/v1/images/tokens'
-            token_payload = {'num': 1, 'seconds': 3600}
-            token_headers = {'Accept': 'application/json'}
-            
-            token_response = requests.post(token_url, json=token_payload, headers=token_headers)
-            if token_response.status_code != 200:
-                QMessageBox.warning(self, '警告', f'获取token失败: 状态码 {token_response.status_code}')
+            # 检查是否设置了API token
+            api_token = self.image_manager.load_image_api_token()
+            if not api_token:
+                QMessageBox.warning(self, '警告', '请先在图片菜单中设置API token')
                 return
             
-            token_data = token_response.json()
-            if not token_data.get('status'):
-                QMessageBox.warning(self, '警告', f'获取token失败: {token_data.get("message", "未知错误")}')
-                return
-            
-            tokens = token_data.get('data', {}).get('tokens', [])
-            if not tokens:
-                QMessageBox.warning(self, '警告', '获取token失败: 未返回token')
-                return
-            
-            token = tokens[0].get('token')
-            if not token:
-                QMessageBox.warning(self, '警告', '获取token失败: token为空')
-                return
-            
-            with open(file_path, 'rb') as f:
-                files = {'file': (os.path.basename(file_path), f)}
-                data = {'token': token, 'permission': 1}
-                
-                response = requests.post('https://picui.cn/api/v1/upload', files=files, data=data)
-                
-                if response.status_code == 200:
-                    data = response.json()
-                    if data.get('status'):
-                        image_data = data.get('data', {})
-                        image_url = image_data.get('links', {}).get('url')
-                        if image_url:
-                            component.set_value(field_name, image_url)
-                            line_edit.setText(image_url)
-                            self.save_picture_info(image_data)
-                            self.statusBar.showMessage('图片上传成功')
-                        else:
-                            QMessageBox.warning(self, '警告', '上传成功但未返回图片URL')
-                    else:
-                        QMessageBox.warning(self, '警告', f'上传失败: {data.get("message", "未知错误")}')
+            # 使用ImageManager上传图片
+            image_data = self.image_manager.upload_image(file_path)
+            if image_data:
+                image_url = image_data.get('links', {}).get('url')
+                if image_url:
+                    component.set_value(field_name, image_url)
+                    line_edit.setText(image_url)
+                    self.statusBar.showMessage('图片上传成功')
                 else:
-                    QMessageBox.warning(self, '警告', f'上传失败: 状态码 {response.status_code}')
+                    QMessageBox.warning(self, '警告', '上传成功但未返回图片URL')
+            else:
+                QMessageBox.warning(self, '警告', '上传失败: 无法获取临时token或上传失败')
         except Exception as e:
             QMessageBox.critical(self, '错误', f'上传失败: {str(e)}')
     
-    def save_picture_info(self, image_data):
+    def upload_pictures(self, field_name: str, component: Any, text_edit: QTextEdit) -> None:
+        file_paths, _ = QFileDialog.getOpenFileNames(self, '选择图片', '', '图片文件 (*.jpg *.jpeg *.png *.gif *.webp)')
+        if not file_paths:
+            return
+        
+        try:
+            # 检查是否设置了API token
+            api_token = self.image_manager.load_image_api_token()
+            if not api_token:
+                QMessageBox.warning(self, '警告', '请先在图片菜单中设置API token')
+                return
+            
+            # 上传所有选择的图片
+            uploaded_urls = []
+            for file_path in file_paths:
+                # 使用ImageManager上传图片
+                image_data = self.image_manager.upload_image(file_path)
+                if image_data:
+                    image_url = image_data.get('links', {}).get('url')
+                    if image_url:
+                        uploaded_urls.append(image_url)
+            
+            if uploaded_urls:
+                # 获取当前内容
+                current_content = text_edit.toPlainText()
+                # 添加新上传的图片URL
+                new_content = current_content + ('\n' if current_content else '') + '\n'.join(uploaded_urls)
+                # 更新组件值和文本编辑框
+                component.set_value(field_name, new_content)
+                text_edit.setPlainText(new_content)
+                self.statusBar.showMessage(f'成功上传 {len(uploaded_urls)} 张图片')
+            else:
+                QMessageBox.warning(self, '警告', '没有成功上传的图片')
+        except Exception as e:
+            QMessageBox.critical(self, '错误', f'上传失败: {str(e)}')
+    
+    def upload_pictures_list(self, field_name: str, component: Any, pictures_list: QListWidget) -> None:
+        file_paths, _ = QFileDialog.getOpenFileNames(self, '选择图片', '', '图片文件 (*.jpg *.jpeg *.png *.gif *.webp)')
+        if not file_paths:
+            return
+        
+        try:
+            # 检查是否设置了API token
+            api_token = self.image_manager.load_image_api_token()
+            if not api_token:
+                QMessageBox.warning(self, '警告', '请先在图片菜单中设置API token')
+                return
+            
+            # 上传所有选择的图片
+            uploaded_urls = []
+            for file_path in file_paths:
+                # 使用ImageManager上传图片
+                image_data = self.image_manager.upload_image(file_path)
+                if image_data:
+                    image_url = image_data.get('links', {}).get('url')
+                    if image_url:
+                        uploaded_urls.append(image_url)
+            
+            if uploaded_urls:
+                # 添加到列表
+                for url in uploaded_urls:
+                    item = QListWidgetItem(url)
+                    pictures_list.addItem(item)
+                self.statusBar.showMessage(f'成功上传 {len(uploaded_urls)} 张图片')
+            else:
+                QMessageBox.warning(self, '警告', '没有成功上传的图片')
+        except Exception as e:
+            QMessageBox.critical(self, '错误', f'上传失败: {str(e)}')
+    
+    def add_image_url(self, pictures_list: QListWidget) -> None:
+        # 弹出对话框让用户输入URL
+        url, ok = QInputDialog.getText(self, '添加图片URL', '请输入图片URL:')
+        if ok and url.strip():
+            item = QListWidgetItem(url.strip())
+            pictures_list.addItem(item)
+    
+    def save_picture_info(self, image_data: Dict[str, Any]) -> None:
         save_dir = 'C:\\Users\\Administrator\\.pyhtml\\picturestemp'
         os.makedirs(save_dir, exist_ok=True)
         timestamp = int(time.time() * 1000)
@@ -1125,7 +1302,7 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
         
         print(f'图片信息已保存到: {file_path}')
     
-    def import_component(self):
+    def import_component(self) -> None:
         file_dialog = QFileDialog()
         file_dialog.setFileMode(QFileDialog.ExistingFile)
         file_dialog.setNameFilter('压缩包 (*.zip)')
@@ -1168,13 +1345,13 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
                 except Exception as e:
                     QMessageBox.critical(self, '错误', f'无法导入组件: {str(e)}')
     
-    def new_project(self):
+    def new_project(self) -> None:
         self.project = Project('Untitled')
         self.refresh_page_components()
         self.clear_properties_panel()
         self.statusBar.showMessage('已创建新项目')
     
-    def open_project(self):
+    def open_project(self) -> None:
         file_path, _ = QFileDialog.getOpenFileName(self, '打开项目', '', 'pyHTML项目文件 (*.pyhtml)')
         if file_path:
             try:
@@ -1187,7 +1364,7 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
             except Exception as e:
                 QMessageBox.critical(self, '错误', f'无法打开项目: {str(e)}')
     
-    def save_project(self):
+    def save_project(self) -> None:
         if not self.project.file_path:
             file_path, _ = QFileDialog.getSaveFileName(self, '保存项目', '', 'pyHTML项目文件 (*.pyhtml)')
             if not file_path:
@@ -1203,7 +1380,7 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
         except Exception as e:
             QMessageBox.critical(self, '错误', f'无法保存项目: {str(e)}')
     
-    def auto_save(self):
+    def auto_save(self) -> None:
         if self.project.file_path:
             try:
                 self.project.save()
@@ -1211,16 +1388,16 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
             except Exception:
                 pass
     
-    def update_preview(self):
+    def update_preview(self) -> None:
         self.preview_server.update_html(self.project)
         self.statusBar.showMessage('预览已更新')
     
-    def change_theme(self, theme_name):
+    def change_theme(self, theme_name: str) -> None:
         if self.theme_manager.set_theme(theme_name):
             self.apply_theme()
             self.statusBar.showMessage(f'已切换到主题: {theme_name}')
     
-    def open_theme_editor(self):
+    def open_theme_editor(self) -> None:
         dialog = QDialog(self)
         dialog.setWindowTitle('主题编辑器')
         dialog.setGeometry(200, 200, 800, 600)
@@ -1254,16 +1431,7 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
         if self.theme_manager.current_theme:
             colors = self.theme_manager.current_theme.colors
         else:
-            colors = {
-                'primary': '#4CAF50',
-                'secondary': '#333333',
-                'background': '#f0f0f0',
-                'text': '#333333',
-                'text_light': '#ffffff',
-                'border': '#dddddd',
-                'hover': '#45a049',
-                'pressed': '#3d8b40'
-            }
+            colors = DEFAULT_COLORS
         
         for color_name, color_value in colors.items():
             color_row = QHBoxLayout()
@@ -1271,7 +1439,7 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
             color_row.addWidget(QLabel(display_name))
             color_button = QPushButton()
             color_button.setFixedWidth(40)
-            color_button.setStyleSheet(f'background-color: {color_value}; border: 1px solid #ddd; border-radius: 3px;')
+            color_button.setStyleSheet(f'background-color: {color_value}; border: 1px solid {StyleConstants.BORDER_COLOR}; border-radius: 3px;')
             color_button.clicked.connect(lambda checked, name=color_name, btn=color_button: self._change_theme_color_editor(name, btn))
             color_row.addWidget(color_button)
             color_edit_layout.addLayout(color_row)
@@ -1319,10 +1487,6 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
         color_group.addLayout(color_grid)
         main_layout.addLayout(color_group)
         
-        preview_button = QPushButton('预览')
-        preview_button.clicked.connect(lambda: self._preview_theme_editor(font_family_combo, font_size_spin, background_image_edit))
-        main_layout.addWidget(preview_button)
-        
         button_layout = QHBoxLayout()
         save_button = QPushButton('保存为新主题')
         save_button.clicked.connect(lambda: self._save_custom_theme_editor(theme_name_edit, theme_desc_edit, font_family_combo, font_size_spin, background_image_edit, dialog))
@@ -1334,29 +1498,29 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
         
         dialog.exec_()
     
-    def _change_theme_color_editor(self, color_name, button):
+    def _change_theme_color_editor(self, color_name: str, button: QPushButton) -> None:
         if self.theme_manager.current_theme:
             current_color = self.theme_manager.current_theme.colors.get(color_name, '#000000')
             display_name = COLOR_NAME_MAP.get(color_name, color_name)
             color = QColorDialog.getColor(QColor(current_color), self, f'选择{display_name}颜色')
             if color.isValid():
-                button.setStyleSheet(f'background-color: {color.name()}; border: 1px solid #ddd; border-radius: 3px;')
+                button.setStyleSheet(f'background-color: {color.name()}; border: 1px solid {StyleConstants.BORDER_COLOR}; border-radius: 3px;')
                 self.theme_manager.current_theme.colors[color_name] = color.name()
                 self.apply_theme()
     
-    def _select_background_image_editor(self, edit_widget):
+    def _select_background_image_editor(self, edit_widget: QLineEdit) -> None:
         file_path, _ = QFileDialog.getOpenFileName(self, '选择背景图片', '', '图片文件 (*.jpg *.jpeg *.png *.gif *.webp)')
         if file_path:
             edit_widget.setText(file_path)
     
-    def _preview_theme_editor(self, font_combo, size_spin, image_edit):
+    def _preview_theme_editor(self, font_combo: QFontComboBox, size_spin: QSpinBox, image_edit: QLineEdit) -> None:
         if self.theme_manager.current_theme:
             self.theme_manager.current_theme.fonts['family'] = font_combo.currentFont().family()
             self.theme_manager.current_theme.fonts['size'] = size_spin.value()
             self.theme_manager.current_theme.background_image = image_edit.text()
             self.apply_theme()
     
-    def _save_custom_theme_editor(self, name_edit, desc_edit, font_combo, size_spin, image_edit, dialog):
+    def _save_custom_theme_editor(self, name_edit: QLineEdit, desc_edit: QLineEdit, font_combo: QFontComboBox, size_spin: QSpinBox, image_edit: QLineEdit, dialog: QDialog) -> None:
         theme_name = name_edit.text().strip()
         if not theme_name:
             QMessageBox.warning(self, '警告', '请输入主题名称')
@@ -1371,17 +1535,17 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
             success = self.theme_manager.save_theme(theme)
             
             if success:
+                # 刷新主题列表
+                self._refresh_theme_menu()
                 QMessageBox.information(self, '成功', f'主题 "{theme_name}" 已保存')
                 dialog.accept()
             else:
                 QMessageBox.warning(self, '警告', '保存主题失败，请检查权限设置')
     
-    def resizeEvent(self, event):
+    def resizeEvent(self, event: QEvent) -> None:
         super().resizeEvent(event)
-        if not self.isMaximized():
-            self.setWindowRadius(10)
     
-    def paintEvent(self, event):
+    def paintEvent(self, event: QEvent) -> None:
         super().paintEvent(event)
         
         if self.theme_manager.current_theme and self.theme_manager.current_theme.background_image:
@@ -1401,7 +1565,7 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
                 )
                 painter.drawPixmap(rect, scaled_pixmap)
     
-    def open_head_settings(self):
+    def open_head_settings(self) -> None:
         dialog = QDialog(self)
         dialog.setWindowTitle('Head设置')
         dialog.setGeometry(200, 200, 600, 450)
@@ -1528,7 +1692,7 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
         
         dialog.exec_()
     
-    def _add_meta_tag_editor(self, meta_list):
+    def _add_meta_tag_editor(self, meta_list: QListWidget) -> None:
         name, ok1 = QInputDialog.getText(self, '添加Meta标签', '名称:')
         if ok1:
             content, ok2 = QInputDialog.getText(self, '添加Meta标签', '内容:')
@@ -1539,7 +1703,7 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
                 item.setData(Qt.UserRole, meta)
                 meta_list.addItem(item)
     
-    def _edit_meta_tag_editor(self, meta_list):
+    def _edit_meta_tag_editor(self, meta_list: QListWidget) -> None:
         current_item = meta_list.currentItem()
         if current_item:
             meta = current_item.data(Qt.UserRole)
@@ -1552,14 +1716,14 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
                     current_item.setText(str(meta))
                     current_item.setData(Qt.UserRole, meta)
     
-    def _delete_meta_tag_editor(self, meta_list):
+    def _delete_meta_tag_editor(self, meta_list: QListWidget) -> None:
         current_item = meta_list.currentItem()
         if current_item:
             meta = current_item.data(Qt.UserRole)
             self.project.head_config.setdefault('meta_tags', []).remove(meta)
             meta_list.takeItem(meta_list.row(current_item))
     
-    def _add_link_tag_editor(self, link_list):
+    def _add_link_tag_editor(self, link_list: QListWidget) -> None:
         rel, ok1 = QInputDialog.getText(self, '添加Link标签', 'rel:')
         if ok1:
             href, ok2 = QInputDialog.getText(self, '添加Link标签', 'href:')
@@ -1570,7 +1734,7 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
                 item.setData(Qt.UserRole, link)
                 link_list.addItem(item)
     
-    def _edit_link_tag_editor(self, link_list):
+    def _edit_link_tag_editor(self, link_list: QListWidget) -> None:
         current_item = link_list.currentItem()
         if current_item:
             link = current_item.data(Qt.UserRole)
@@ -1583,14 +1747,14 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
                     current_item.setText(str(link))
                     current_item.setData(Qt.UserRole, link)
     
-    def _delete_link_tag_editor(self, link_list):
+    def _delete_link_tag_editor(self, link_list: QListWidget) -> None:
         current_item = link_list.currentItem()
         if current_item:
             link = current_item.data(Qt.UserRole)
             self.project.head_config.setdefault('links', []).remove(link)
             link_list.takeItem(link_list.row(current_item))
     
-    def _add_script_tag_editor(self, script_list):
+    def _add_script_tag_editor(self, script_list: QListWidget) -> None:
         dialog = QDialog(self)
         dialog.setWindowTitle('添加Script标签')
         layout = QVBoxLayout(dialog)
@@ -1632,7 +1796,7 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
         
         dialog.exec_()
     
-    def _edit_script_tag_editor(self, script_list):
+    def _edit_script_tag_editor(self, script_list: QListWidget) -> None:
         current_item = script_list.currentItem()
         if current_item:
             script = current_item.data(Qt.UserRole)
@@ -1681,14 +1845,14 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
             
             dialog.exec_()
     
-    def _delete_script_tag_editor(self, script_list):
+    def _delete_script_tag_editor(self, script_list: QListWidget) -> None:
         current_item = script_list.currentItem()
         if current_item:
             script = current_item.data(Qt.UserRole)
             self.project.head_config.setdefault('scripts', []).remove(script)
             script_list.takeItem(script_list.row(current_item))
     
-    def _add_favicon_editor(self):
+    def _add_favicon_editor(self) -> None:
         favicon_url, ok = QInputDialog.getText(self, '添加网站图标', '请输入favicon图标URL:')
         if ok and favicon_url:
             existing_favicon = None
@@ -1703,7 +1867,7 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
                 favicon_link = {'rel': 'icon', 'href': favicon_url, 'type': 'image/x-icon'}
                 self.project.head_config.setdefault('links', []).append(favicon_link)
     
-    def _add_meta_description_editor(self):
+    def _add_meta_description_editor(self) -> None:
         description, ok = QInputDialog.getText(self, '添加描述', '请输入页面描述:')
         if ok and description:
             existing_desc = None
@@ -1718,7 +1882,7 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
                 desc_meta = {'name': 'description', 'content': description}
                 self.project.head_config.setdefault('meta_tags', []).append(desc_meta)
     
-    def _add_meta_keywords_editor(self):
+    def _add_meta_keywords_editor(self) -> None:
         keywords, ok = QInputDialog.getText(self, '添加关键词', '请输入页面关键词（用逗号分隔）:')
         if ok and keywords:
             existing_keywords = None
@@ -1733,14 +1897,14 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
                 keywords_meta = {'name': 'keywords', 'content': keywords}
                 self.project.head_config.setdefault('meta_tags', []).append(keywords_meta)
     
-    def _save_head_settings_editor(self, title_edit, lang_edit, dialog):
+    def _save_head_settings_editor(self, title_edit: QLineEdit, lang_edit: QLineEdit, dialog: QDialog) -> None:
         self.project.title = title_edit.text().strip()
         self.project.head_config['lang'] = lang_edit.text().strip()
         self.preview_server.update_html(self.project)
         self.statusBar.showMessage('Head设置已保存')
         dialog.accept()
     
-    def open_ai_dialog(self):
+    def open_ai_dialog(self) -> None:
         from gui.ai_dialog import AIDialogWidgetImpl
         
         dialog = QDialog(self)
@@ -1765,7 +1929,7 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
         
         dialog.exec_()
     
-    def open_ai_config(self):
+    def open_ai_config(self) -> None:
         dialog = QDialog(self)
         dialog.setWindowTitle('AI配置')
         dialog.setGeometry(300, 200, 500, 200)
@@ -1777,7 +1941,7 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
         
         dialog.exec_()
     
-    def optimize_component_with_ai(self):
+    def optimize_component_with_ai(self) -> None:
         current_item = self.page_components.currentItem()
         if not current_item:
             QMessageBox.warning(self, '提示', '请先选择一个组件')
@@ -1863,7 +2027,7 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
                          f"组件类型: {component.display_name}\n" \
                          f"当前配置: {component.values}\n\n" \
                          f"请返回优化后的配置，只返回JSON格式，格式如下：\n" \
-                         f"{{\"values\": {{...}}}}"
+                         f'{{"values": {{...}}}}'
             
             user_requirement = user_requirement_edit.toPlainText().strip()
             
@@ -1931,7 +2095,7 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
         
         dialog.exec_()
     
-    def closeEvent(self, event):
+    def closeEvent(self, event: QEvent) -> None:
         if self.project.components and not self.project.file_path:
             reply = QMessageBox.question(
                 self, 
@@ -1949,7 +2113,7 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
         self.preview_server.stop()
         event.accept()
     
-    def event(self, event):
+    def event(self, event: QEvent) -> bool:
         if event.type() == QEvent.User:
             if hasattr(event, 'message'):
                 for widget in QApplication.topLevelWidgets():
@@ -1980,7 +2144,7 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
         return super().event(event)
 
 
-def run_gui():
+def run_gui() -> None:
     if not HAS_PYQT:
         print('Error: PyQt5 is required for GUI. Please install it with: pip install PyQt5')
         return

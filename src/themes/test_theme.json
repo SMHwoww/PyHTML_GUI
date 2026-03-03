@@ -1,6 +1,6 @@
 {
-  "name": "默认主题",
-  "description": "PyHTML的默认绿色主题",
+  "name": "测试主题",
+  "description": "测试menu_text颜色",
   "author": "PyHTML Team",
   "version": "1.0",
   "colors": {
@@ -11,7 +11,7 @@
     "text_light": "#ffffff",
     "text_black": "#000000",
     "input_background": "#ffffff",
-    "menu_text": "#ffffff",
+    "menu_text": "#ff0000",
     "border": "#dddddd",
     "hover": "#45a049",
     "pressed": "#3d8b40",

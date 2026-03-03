@@ -1,7 +1,7 @@
 import os
 import subprocess
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from .component import Component
 from .generator import HTMLGenerator
 
@@ -157,6 +157,33 @@ logs
         
         return str(project_path)
     
+    def _check_node_available(self) -> bool:
+        """检查Node.js是否可用"""
+        try:      
+            # 尝试运行node --version
+            result = subprocess.run(
+                ['node', '--version'],
+                capture_output=True,
+                text=True,
+                encoding='utf-8',
+                shell=True
+            )
+            
+            if result.returncode == 0:
+                print('Node.js可用!')
+                return True
+            else:
+                print('Node.js不可用，退出码不为0')
+                return False
+        except FileNotFoundError as e:
+            print(f'错误: 系统找不到node命令: {str(e)}')
+            return False
+        except Exception as e:
+            print(f'检查Node.js时发生错误: {str(e)}')
+            import traceback
+            traceback.print_exc()
+            return False
+    
     def _check_npm_available(self) -> bool:
         """检查npm是否可用"""
         try:      
@@ -184,8 +211,110 @@ logs
             traceback.print_exc()
             return False
     
+    def _install_nodejs(self, log_callback=None) -> bool:
+        """自动安装Node.js"""
+        try:
+            import os
+            import tempfile
+            import requests
+            import zipfile
+            import shutil
+            
+            log_message = '开始自动安装Node.js...'
+            print(log_message)
+            if log_callback:
+                log_callback(log_message)
+            
+            # 下载Node.js安装包
+            # 这里使用最新的LTS版本
+            nodejs_url = 'https://nodejs.org/dist/v20.11.0/node-v20.11.0-win-x64.zip'
+            log_message = f'正在下载Node.js: {nodejs_url}'
+            print(log_message)
+            if log_callback:
+                log_callback(log_message)
+            
+            # 创建临时目录
+            with tempfile.TemporaryDirectory() as temp_dir:
+                zip_path = os.path.join(temp_dir, 'nodejs.zip')
+                
+                # 下载文件
+                response = requests.get(nodejs_url, stream=True)
+                total_size = int(response.headers.get('content-length', 0))
+                downloaded_size = 0
+                
+                with open(zip_path, 'wb') as f:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        if chunk:
+                            f.write(chunk)
+                            downloaded_size += len(chunk)
+                            if total_size > 0:
+                                progress = (downloaded_size / total_size) * 100
+                                if log_callback:
+                                    log_callback(f'下载进度: {progress:.1f}%')
+                
+                # 解压到临时目录
+                log_message = '正在解压Node.js...'
+                print(log_message)
+                if log_callback:
+                    log_callback(log_message)
+                
+                with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                    zip_ref.extractall(temp_dir)
+                
+                # 找到解压后的目录
+                nodejs_dir = os.path.join(temp_dir, os.listdir(temp_dir)[0])
+                
+                # 安装到Program Files
+                install_dir = os.path.join(os.environ.get('ProgramFiles', r'C:\Program Files'), 'nodejs')
+                log_message = f'正在安装到: {install_dir}'
+                print(log_message)
+                if log_callback:
+                    log_callback(log_message)
+                
+                # 清理旧安装
+                if os.path.exists(install_dir):
+                    shutil.rmtree(install_dir)
+                
+                # 复制文件
+                shutil.copytree(nodejs_dir, install_dir)
+                
+                # 添加到环境变量
+                path = os.environ.get('PATH', '')
+                if install_dir not in path:
+                    os.environ['PATH'] = f'{install_dir};{path}'
+                    # 永久添加到环境变量
+                    import winreg
+                    key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, 'Environment', 0, winreg.KEY_SET_VALUE)
+                    winreg.SetValueEx(key, 'PATH', 0, winreg.REG_EXPAND_SZ, f'{install_dir};{path}')
+                    winreg.CloseKey(key)
+                    log_message = '已添加Node.js到环境变量'
+                    print(log_message)
+                    if log_callback:
+                        log_callback(log_message)
+                
+            log_message = 'Node.js安装成功!'
+            print(log_message)
+            if log_callback:
+                log_callback(log_message)
+            return True
+        except Exception as e:
+            error_message = f'安装Node.js时发生错误: {str(e)}'
+            print(error_message)
+            if log_callback:
+                log_callback(error_message)
+            import traceback
+            traceback.print_exc()
+            return False
+    
     def install_dependencies(self, project_dir: str, log_callback=None) -> bool:
         """安装项目依赖"""
+        # 检查Node.js是否可用
+        if not self._check_node_available():
+            # 尝试自动安装Node.js
+            if not self._install_nodejs(log_callback):
+                return False
+        
+        # 检查npm是否可用
         if not self._check_npm_available():
             return False
         
@@ -240,8 +369,15 @@ logs
             traceback.print_exc()
             return False
     
-    def deploy_worker(self, project_dir: str, api_token: str = None, custom_domain: str = None, log_callback=None) -> bool:
+    def deploy_worker(self, project_dir: str, api_token: str = None, custom_domain: str = None, log_callback=None) -> Tuple[bool, Optional[str]]:
         """部署Cloudflare Worker"""
+        # 检查Node.js是否可用
+        if not self._check_node_available():
+            # 尝试自动安装Node.js
+            if not self._install_nodejs(log_callback):
+                return False, None
+        
+        # 检查npm是否可用
         if not self._check_npm_available():
             return False, None       
         try:
@@ -357,6 +493,14 @@ logs
                 print(error_message)
                 if log_callback:
                     log_callback(error_message)
+                
+                # 检查是否是域名不存在的错误
+                if 'The zone' in stdout and 'does not exist on your account' in stdout:
+                    domain_error_message = '错误: 您指定的域名不存在于您的Cloudflare账户中。请更换一个可用的域名。'
+                    print(domain_error_message)
+                    if log_callback:
+                        log_callback(domain_error_message)
+                
                 return False, None
         except FileNotFoundError as e:
             error_message = f'错误: 系统找不到指定的文件: {str(e)}'

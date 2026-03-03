@@ -5,7 +5,7 @@
   "fields": [
     {
       "name": "images",
-      "type": "textarea",
+      "type": "pictures",
       "label": "图片URL",
       "default": "https://upload-bbs.miyoushe.com/upload/2026/02/05/288909600/70642da7de8c6106af492c754a34bc4d_6139057021720985156.jpg?x-oss-process=image/resize,s_300/quality,q_80/auto-orient,0/interlace,1/format,jpg\nhttps://upload-bbs.miyoushe.com/upload/2026/02/04/288909600/86092d7f6e08d8735a423c68e542c81a_4025614547561242667.png?x-oss-process=image/resize,s_300/quality,q_80/auto-orient,0/interlace,1/format,jpg\nhttps://upload-bbs.miyoushe.com/upload/2025/11/21/310734234/50fa304afa9fc4b1be092bc16a384906_2878578656610514158.png?x-oss-process=image/resize,s_600/quality,q_80/auto-orient,0/interlace,1/format,png",
       "placeholder": "每行一个图片URL"
