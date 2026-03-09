@@ -61,6 +61,12 @@ export default {{
         # 从head_config继承配置或使用默认值
         project_name = worker_name or title or 'pyhtml-cloudflare-worker'
         project_name = project_name.lower().replace(' ', '-')
+        # 过滤掉非字母数字和破折号的字符
+        import re
+        project_name = re.sub(r'[^a-z0-9-]', '', project_name)
+        # 确保项目名不为空
+        if not project_name:
+            project_name = 'pyhtml-cloudflare-worker'
         
         # 创建package.json
         package_json = {

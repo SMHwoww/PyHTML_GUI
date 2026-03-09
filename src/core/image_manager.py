@@ -112,7 +112,6 @@ class ImageManager:
                 
                 if response.status_code == 200:
                     data = response.json()
-                    print(response.text)
                     if data.get('status'):
                         image_data = data.get('data', {})
                         self.save_picture_info(image_data)

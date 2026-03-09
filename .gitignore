@@ -42,3 +42,16 @@ Thumbs.db
 .env
 .venv
 venv/
+
+# Build and packaging
+build/
+dist/
+output/
+*.spec
+*.iss
+*.exe
+*.msi
+*.zip
+*.tar.gz
+*.whl
+build.bat

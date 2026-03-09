@@ -13,7 +13,7 @@ try:
         QListWidget, QListWidgetItem, QSplitter, QFileDialog, QMessageBox,
         QAction, QStatusBar, QLabel, QPushButton, QLineEdit, QComboBox, QColorDialog,
         QSpinBox, QDoubleSpinBox, QCheckBox, QTextEdit, QFontComboBox, QMenu,
-        QShortcut, QDialog, QInputDialog, QAbstractItemView
+        QShortcut, QDialog, QInputDialog, QAbstractItemView, QScrollArea
     )
     from PyQt5.QtCore import Qt, QTimer, QRect, QEvent, QThread, pyqtSignal, QCoreApplication
     from PyQt5.QtGui import QColor, QFont, QPainter, QRegion, QIcon, QPixmap, QKeySequence, QPainterPath
@@ -25,36 +25,11 @@ except ImportError:
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from core import Project, ComponentLoader, HTMLGenerator, PreviewServer
 from core.cloudflare_worker import CloudflareWorkerGenerator
-from core.theme import ThemeManager, Theme
 from core.ai_client import AIDialogWidget, AIApiConfigDialog, AIClient
 from core.prompt_generator import PromptGenerator
 from core.image_manager import ImageManager
-from gui.image_manager_gui import ImageSettingsDialog, ImageManagementDialog
+from gui.image_manager_gui import ImageSettingsDialog, ImageManagementDialog, ImageUploadWorker, AIImageGeneratorDialog
 from utils import get_components_dir
-
-
-COLOR_NAME_MAP = {
-    'primary': '主色',
-    'secondary': '次要色',
-    'background': '背景色',
-    'text': '文本色',
-    'text_light': '浅色文本',
-    'border': '边框色',
-    'hover': '悬停色',
-    'pressed': '按下色'
-}
-
-
-DEFAULT_COLORS = {
-    'primary': '#4CAF50',
-    'secondary': '#333333',
-    'background': '#f0f0f0',
-    'text': '#333333',
-    'text_light': '#ffffff',
-    'border': '#dddddd',
-    'hover': '#45a049',
-    'pressed': '#3d8b40'
-}
 
 
 class StyleConstants:
@@ -90,12 +65,12 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
         self.html_generator = HTMLGenerator()
         self.cloudflare_worker_generator = CloudflareWorkerGenerator()
         self.preview_server = PreviewServer(8765)
-        self.theme_manager = ThemeManager()
         self.image_manager = ImageManager()
     
     def _initialize_caches(self) -> None:
         self._background_pixmap_cache: Optional[QPixmap] = None
         self._background_path_cache: Optional[str] = None
+        self._background_image_path: Optional[str] = None
     
     def _initialize_timers(self) -> None:
         self.auto_save_timer = QTimer(self)
@@ -119,7 +94,7 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
         self._set_window_icon()
         self._setup_main_layout()
         self._setup_status_bar()
-        self.apply_theme()
+        self._apply_hardcoded_style()
     
     def _set_window_icon(self) -> None:
         icon_path = os.path.join(os.path.dirname(__file__), '..', '..', 'asset', 'icon.png')
@@ -255,8 +230,7 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
         
         menus = [
             ('文件(&F)', self._create_file_menu()),
-            ('视图(&V)', self._create_view_menu()),
-            ('AI助手beta(&A)', self._create_ai_menu()),
+            ('AI助手(&A)', self._create_ai_menu()),
             ('图片(&I)', self._create_image_menu()),
             ('设置(&S)', self._create_settings_menu())
         ]
@@ -275,6 +249,12 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
     
     def _create_file_menu(self) -> QMenu:
         menu = self._create_menu('文件(&F)')
+
+        preview_action = QAction('预览(&P)', self)
+        preview_action.triggered.connect(self.toggle_preview)
+        menu.addAction(preview_action)
+
+        menu.addSeparator()
         
         new_action = QAction('新建项目(&N)', self)
         new_action.triggered.connect(self.new_project)
@@ -305,16 +285,7 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
         menu.addAction(export_worker_action)
         
         return menu
-    
-    def _create_view_menu(self) -> QMenu:
-        menu = self._create_menu('视图(&V)')
-        
-        preview_action = QAction('预览(&P)', self)
-        preview_action.triggered.connect(self.toggle_preview)
-        menu.addAction(preview_action)
-        
-        return menu
-    
+
     def _create_ai_menu(self) -> QMenu:
         menu = self._create_menu('AI助手beta(&A)')
         
@@ -339,37 +310,11 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
         image_manage_action.triggered.connect(self.open_image_management)
         menu.addAction(image_manage_action)
         
-        return menu
-    
-    def _refresh_theme_menu(self) -> None:
-        """刷新主题菜单，确保新保存的主题能够在主题菜单中立即显示"""
-        # 重新加载主题
-        self.theme_manager.load_all_themes()
+        ai_image_action = QAction('AI 图片生成(&A)', self)
+        ai_image_action.triggered.connect(self.open_ai_image_generator)
+        menu.addAction(ai_image_action)
         
-        # 找到主题菜单并刷新
-        for action in self.menuBar().actions():
-            if action.text() == '设置(&S)':
-                settings_menu = action.menu()
-                if settings_menu:
-                    for menu_action in settings_menu.actions():
-                        if menu_action.text() == '主题(&T)':
-                            theme_menu = menu_action.menu()
-                            if theme_menu:
-                                # 清空现有主题菜单项
-                                theme_menu.clear()
-                                
-                                # 重新添加主题菜单项
-                                themes = self.theme_manager.get_all_themes()
-                                for theme in themes:
-                                    theme_action = QAction(theme.name, self)
-                                    theme_action.triggered.connect(lambda checked, name=theme.name: self.change_theme(name))
-                                    theme_menu.addAction(theme_action)
-                                
-                                # 添加主题编辑器菜单项
-                                theme_editor_action = QAction('主题编辑器(&E)', self)
-                                theme_editor_action.triggered.connect(self.open_theme_editor)
-                                theme_menu.addAction(theme_editor_action)
-                                break
+        return menu
     
     def _create_settings_menu(self) -> QMenu:
         menu = self._create_menu('设置(&S)')
@@ -378,16 +323,9 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
         head_settings_action.triggered.connect(self.open_head_settings)
         menu.addAction(head_settings_action)
         
-        theme_menu = menu.addMenu('主题(&T)')
-        themes = self.theme_manager.get_all_themes()
-        for theme in themes:
-            theme_action = QAction(theme.name, self)
-            theme_action.triggered.connect(lambda checked, name=theme.name: self.change_theme(name))
-            theme_menu.addAction(theme_action)
-        
-        theme_editor_action = QAction('主题编辑器(&E)', self)
-        theme_editor_action.triggered.connect(self.open_theme_editor)
-        theme_menu.addAction(theme_editor_action)
+        background_action = QAction('背景图片(&B)', self)
+        background_action.triggered.connect(self.open_background_settings)
+        menu.addAction(background_action)
         
         return menu
     
@@ -441,6 +379,25 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
                 background-color: transparent;
                 border: none;
             }
+            QScrollBar:vertical {
+                width: 8px;
+                background: transparent;
+                margin: 0px;
+            }
+            QScrollBar::handle:vertical {
+                background: #dddddd;
+                border-radius: 4px;
+                min-height: 20px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background: #cccccc;
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                height: 0px;
+            }
+            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+                background: transparent;
+            }
         ''')
         self.component_library.setDragEnabled(True)
         self.component_library.itemDoubleClicked.connect(self.add_component_from_library)
@@ -456,6 +413,25 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
             QListWidget {
                 background-color: transparent;
                 border: none;
+            }
+            QScrollBar:vertical {
+                width: 8px;
+                background: transparent;
+                margin: 0px;
+            }
+            QScrollBar::handle:vertical {
+                background: #dddddd;
+                border-radius: 4px;
+                min-height: 20px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background: #cccccc;
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                height: 0px;
+            }
+            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+                background: transparent;
             }
         ''')
         self.page_components.setSelectionMode(QListWidget.SingleSelection)
@@ -494,20 +470,149 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
     def _create_right_panel(self) -> QWidget:
         panel, layout = self._create_panel_widget('属性编辑')
         
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setStyleSheet('''
+            QScrollArea {
+                border: none;
+            }
+            QScrollBar:vertical {
+                width: 8px;
+                background: transparent;
+                margin: 0px;
+            }
+            QScrollBar::handle:vertical {
+                background: #dddddd;
+                border-radius: 4px;
+                min-height: 20px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background: #cccccc;
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                height: 0px;
+            }
+            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+                background: transparent;
+            }
+        ''')
+        
         self.properties_panel = QWidget()
         self.properties_panel.setStyleSheet('background-color: transparent;')
         self.properties_layout = QVBoxLayout(self.properties_panel)
         self.properties_layout.setAlignment(Qt.AlignTop)
-        layout.addWidget(self.properties_panel)
         
-        layout.addStretch(1)
+        scroll_area.setWidget(self.properties_panel)
+        
+        layout.addWidget(scroll_area)
+        
         self.clear_properties_panel()
         
         return panel
     
-    def apply_theme(self) -> None:
-        stylesheet = self.theme_manager.get_current_stylesheet()
-        self.setStyleSheet(stylesheet)
+    def _apply_hardcoded_style(self) -> None:
+        self.setStyleSheet('''
+            QMainWindow {
+                background-color: #f0f0f0;
+                border: 1px solid #dddddd;
+            }
+            QWidget {
+                font-family: Microsoft YaHei;
+                font-size: 12px;
+                color: #000000;
+            }
+            QLabel {
+                font-weight: bold;
+                color: #000000;
+            }
+            QPushButton {
+                background-color: #4CAF50;
+                color: #ffffff;
+                border: none;
+                padding: 6px 12px;
+                border-radius: 4px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #45a049;
+            }
+            QPushButton:pressed {
+                background-color: #3d8b40;
+            }
+            QListWidget {
+                background-color: #ffffff;
+                border: 1px solid #dddddd;
+                border-radius: 4px;
+            }
+            QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox, QTextEdit, QCheckBox {
+                background-color: #ffffff;
+                border: 1px solid #dddddd;
+                border-radius: 4px;
+                padding: 4px;
+                color: #000000;
+            }
+            QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus, QTextEdit:focus {
+                border-color: #4CAF50;
+                outline: none;
+            }
+            QMenuBar {
+                background-color: #333333;
+                color: #ffffff;
+            }
+            QMenuBar::item {
+                color: #ffffff;
+            }
+            QMenuBar::item:selected {
+                background-color: #4CAF50;
+                color: #ffffff;
+            }
+            QMenu {
+                background-color: #333333;
+                color: #ffffff;
+            }
+            QMenu::item:selected {
+                background-color: #4CAF50;
+                color: #ffffff;
+            }
+            QStatusBar {
+                background-color: #f0f0f0;
+                border-top: 1px solid #dddddd;
+                color: #000000;
+            }
+            .CustomTitleBar {
+                background-color: #333333;
+                color: #ffffff;
+                height: 30px;
+            }
+            .TitleLabel {
+                color: #ffffff;
+                font-weight: bold;
+                font-size: 14px;
+            }
+            .CustomMenuBar {
+                background-color: #333333;
+                color: #ffffff;
+                padding: 2px 0;
+            }
+            .CustomMenuBar QPushButton {
+                background-color: transparent;
+                color: #ffffff;
+                border: none;
+                padding: 4px 10px;
+                font-size: 14px;
+            }
+            .CustomMenuBar QPushButton:hover {
+                background-color: rgba(255, 255, 255, 0.1);
+            }
+            .CustomMenuBar QMenu {
+                background-color: #333333;
+                color: #ffffff;
+            }
+            .CustomMenuBar QMenu::item:selected {
+                background-color: #4CAF50;
+                color: #ffffff;
+            }
+        ''')
         self._background_pixmap_cache = None
         self._background_path_cache = None
         self.update()
@@ -676,8 +781,9 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
             component_name = item.data(Qt.UserRole)
             component = self.component_loader.create_instance(component_name)
             if component:
+                from PyQt5.QtWidgets import QAbstractItemView
                 drop_pos = self.page_components.dropIndicatorPosition()
-                if drop_pos in (QListWidget.OnItem, QListWidget.OnItemButtom):
+                if drop_pos in (QAbstractItemView.OnItem, QAbstractItemView.BelowItem):
                     current_item = self.page_components.itemAt(event.pos())
                     if current_item:
                         index = current_item.data(Qt.UserRole) + 1
@@ -826,7 +932,6 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
     
     def _add_select_field(self, layout: QVBoxLayout, field: Dict[str, Any], field_value: Any, field_name: str, component: Any) -> None:
         combo_box = QComboBox()
-        # 设置硬编码样式，确保背景为白色，文字为黑色
         combo_box.setStyleSheet('''
             QComboBox {
                 background-color: white;
@@ -891,7 +996,7 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
         picture_layout.addWidget(picture_edit)
         
         upload_button = QPushButton('上传图片')
-        upload_button.setStyleSheet('color: #333333;')  # 使用text_black颜色
+        upload_button.setStyleSheet('color: #333333;')
         upload_button.clicked.connect(lambda checked, fn=field_name, c=component, le=picture_edit: 
             (self.upload_picture(fn, c, le), self.preview_timer.start(self.preview_delay)))
         picture_layout.addWidget(upload_button)
@@ -918,64 +1023,54 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
     def _add_pictures_field(self, layout: QVBoxLayout, field: Dict[str, Any], field_value: Any, field_name: str, component: Any) -> None:
         pictures_layout = QVBoxLayout()
         
-        # 创建图片URL列表视图
         pictures_list = QListWidget()
         pictures_list.setSelectionMode(QAbstractItemView.SingleSelection)
         pictures_list.setMaximumHeight(150)
-        # 启用拖放排序
         pictures_list.setDragDropMode(QAbstractItemView.InternalMove)
         pictures_list.setDefaultDropAction(Qt.MoveAction)
         pictures_list.setDragEnabled(True)
         pictures_list.setAcceptDrops(True)
         pictures_list.setDropIndicatorShown(True)
-        # 启用编辑功能
         pictures_list.setEditTriggers(QAbstractItemView.DoubleClicked | QAbstractItemView.EditKeyPressed)
         
-        # 加载现有图片URL
         current_value = str(field_value) if field_value is not None else ''
-        image_urls = [url.strip() for url in current_value.split('\n') if url.strip()]
+        image_urls = [url.strip() for url in current_value.split('\\n') if url.strip()]
         for url in image_urls:
             item = QListWidgetItem(url)
             pictures_list.addItem(item)
         
-        # 更新组件值的函数
         def update_component_value():
             urls = []
             for i in range(pictures_list.count()):
                 urls.append(pictures_list.item(i).text())
-            component.set_value(field_name, '\n'.join(urls))
+            component.set_value(field_name, '\\n'.join(urls))
             self.preview_timer.start(self.preview_delay)
         
-        # 连接信号以更新值
         pictures_list.itemChanged.connect(update_component_value)
         pictures_list.model().rowsMoved.connect(update_component_value)
         
-        # 添加图片按钮
         button_layout = QHBoxLayout()
         
         upload_button = QPushButton('上传图片')
-        upload_button.setStyleSheet('color: #333333;')  # 使用text_black颜色
+        upload_button.setStyleSheet('color: #333333;')
         upload_button.clicked.connect(lambda checked, fn=field_name, c=component, pl=pictures_list: 
             (self.upload_pictures_list(fn, c, pl), update_component_value()))
         button_layout.addWidget(upload_button)
         
-        # 添加URL按钮
         add_url_button = QPushButton('添加URL')
-        add_url_button.setStyleSheet('color: #333333;')  # 使用text_black颜色
+        add_url_button.setStyleSheet('color: #333333;')
         add_url_button.clicked.connect(lambda checked, pl=pictures_list: 
             (self.add_image_url(pl), update_component_value()))
         button_layout.addWidget(add_url_button)
         
-        # 删除选中图片按钮
         delete_button = QPushButton('删除选中')
-        delete_button.setStyleSheet('color: #333333;')  # 使用text_black颜色
+        delete_button.setStyleSheet('color: #333333;')
         delete_button.clicked.connect(lambda checked, pl=pictures_list: 
             (pl.takeItem(pl.currentRow()), update_component_value()))
         button_layout.addWidget(delete_button)
         
-        # 清空所有按钮
         clear_button = QPushButton('清空所有')
-        clear_button.setStyleSheet('color: #333333;')  # 使用text_black颜色
+        clear_button.setStyleSheet('color: #333333;')
         clear_button.clicked.connect(lambda checked, pl=pictures_list: 
             (pl.clear(), update_component_value()))
         button_layout.addWidget(clear_button)
@@ -1010,13 +1105,10 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
             worker_name = self.project.title
             custom_domain = ''
             
-            # 检查是否存在wrangler.jsonc文件
             wrangler_config_path = Path(directory) / 'wrangler.jsonc'
             if wrangler_config_path.exists():
                 try:
-                    # 读取并解析wrangler.jsonc文件
                     with open(wrangler_config_path, 'r', encoding='utf-8') as f:
-                        # 跳过注释行
                         lines = []
                         for line in f:
                             if not line.strip().startswith('//'):
@@ -1024,7 +1116,6 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
                         config_content = ''.join(lines)
                         config = json.loads(config_content)
                         
-                        # 提取自定义域名
                         if 'routes' in config:
                             for route in config['routes']:
                                 if route.get('custom_domain'):
@@ -1049,7 +1140,6 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
                     layout.addWidget(QLabel('请选择部署选项:'))
                     
                     auto_deploy = QCheckBox('自动部署到Cloudflare')
-                    # 默认开启自动部署
                     auto_deploy.setChecked(True)
                     layout.addWidget(auto_deploy)
                     
@@ -1062,7 +1152,6 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
                     
                     custom_domain_input = QLineEdit()
                     custom_domain_input.setPlaceholderText('自定义域名 (可选，如: example.com)')
-                    # 自动填充自定义域名
                     if custom_domain:
                         custom_domain_input.setText(custom_domain)
                     layout.addWidget(QLabel('自定义域名:'))
@@ -1114,7 +1203,7 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
                 self._deploy_worker_with_log(project_path, api_token, custom_domain)
             else:
                 self.statusBar.showMessage(f'已创建Cloudflare Worker项目: {project_path}')
-                QMessageBox.information(self, '成功', f'Cloudflare Worker项目已创建:\n\n{project_path}')
+                QMessageBox.information(self, '成功', f'Cloudflare Worker项目已创建:\\n\\n{project_path}')
                 
         except Exception as e:
             QMessageBox.critical(self, '错误', f'无法创建Cloudflare Worker项目: {str(e)}')
@@ -1185,122 +1274,177 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
         dialog = ImageManagementDialog(self, self.image_manager)
         dialog.exec_()
     
-
+    def open_ai_image_generator(self) -> None:
+        dialog = AIImageGeneratorDialog(self, self.image_manager)
+        dialog.exec_()
+    
+    def open_background_settings(self) -> None:
+        dialog = QDialog(self)
+        dialog.setWindowTitle('背景图片设置')
+        dialog.setGeometry(300, 200, 500, 150)
+        
+        layout = QVBoxLayout(dialog)
+        
+        info_label = QLabel('选择背景图片:')
+        layout.addWidget(info_label)
+        
+        button_layout = QHBoxLayout()
+        
+        path_edit = QLineEdit()
+        if self._background_image_path:
+            path_edit.setText(self._background_image_path)
+        path_edit.setPlaceholderText('请选择背景图片')
+        button_layout.addWidget(path_edit)
+        
+        select_button = QPushButton('选择图片')
+        select_button.clicked.connect(lambda: self._select_background_image(path_edit))
+        button_layout.addWidget(select_button)
+        
+        clear_button = QPushButton('清除')
+        clear_button.clicked.connect(lambda: self._clear_background_image(path_edit))
+        button_layout.addWidget(clear_button)
+        
+        layout.addLayout(button_layout)
+        
+        ok_button = QPushButton('确定')
+        ok_button.clicked.connect(lambda: self._save_background_image(path_edit, dialog))
+        layout.addWidget(ok_button)
+        
+        dialog.exec_()
+    
+    def _select_background_image(self, path_edit: QLineEdit) -> None:
+        file_path, _ = QFileDialog.getOpenFileName(self, '选择背景图片', '', '图片文件 (*.jpg *.jpeg *.png *.gif *.webp)')
+        if file_path:
+            path_edit.setText(file_path)
+    
+    def _clear_background_image(self, path_edit: QLineEdit) -> None:
+        path_edit.clear()
+    
+    def _save_background_image(self, path_edit: QLineEdit, dialog: QDialog) -> None:
+        path = path_edit.text().strip()
+        if path and os.path.exists(path):
+            self._background_image_path = path
+        else:
+            self._background_image_path = None
+        self._background_pixmap_cache = None
+        self._background_path_cache = None
+        self.update()
+        dialog.accept()
     
     def upload_picture(self, field_name: str, component: Any, line_edit: QLineEdit) -> None:
         file_path, _ = QFileDialog.getOpenFileName(self, '选择图片', '', '图片文件 (*.jpg *.jpeg *.png *.gif *.webp)')
         if not file_path:
             return
         
-        try:
-            # 检查是否设置了API token
-            api_token = self.image_manager.load_image_api_token()
-            if not api_token:
-                QMessageBox.warning(self, '警告', '请先在图片菜单中设置API token')
-                return
-            
-            # 使用ImageManager上传图片
-            image_data = self.image_manager.upload_image(file_path)
-            if image_data:
-                image_url = image_data.get('links', {}).get('url')
-                if image_url:
-                    component.set_value(field_name, image_url)
-                    line_edit.setText(image_url)
-                    self.statusBar.showMessage('图片上传成功')
-                else:
-                    QMessageBox.warning(self, '警告', '上传成功但未返回图片URL')
-            else:
-                QMessageBox.warning(self, '警告', '上传失败: 无法获取临时token或上传失败')
-        except Exception as e:
-            QMessageBox.critical(self, '错误', f'上传失败: {str(e)}')
-    
-    def upload_pictures(self, field_name: str, component: Any, text_edit: QTextEdit) -> None:
-        file_paths, _ = QFileDialog.getOpenFileNames(self, '选择图片', '', '图片文件 (*.jpg *.jpeg *.png *.gif *.webp)')
-        if not file_paths:
-            return
+        progress_dialog = QDialog(self)
+        progress_dialog.setWindowTitle('上传中')
+        progress_dialog.setGeometry(300, 200, 300, 100)
+        progress_layout = QVBoxLayout(progress_dialog)
         
-        try:
-            # 检查是否设置了API token
-            api_token = self.image_manager.load_image_api_token()
-            if not api_token:
-                QMessageBox.warning(self, '警告', '请先在图片菜单中设置API token')
-                return
-            
-            # 上传所有选择的图片
-            uploaded_urls = []
-            for file_path in file_paths:
-                # 使用ImageManager上传图片
-                image_data = self.image_manager.upload_image(file_path)
+        progress_label = QLabel('正在上传图片，请稍候...')
+        progress_label.setAlignment(Qt.AlignCenter)
+        progress_layout.addWidget(progress_label)
+        
+        self.upload_worker = ImageUploadWorker(self.image_manager, file_path)
+        
+        def on_upload_completed(success, message, image_data):
+            if not progress_dialog.isHidden():
+                progress_dialog.accept()
+            if success:
                 if image_data:
                     image_url = image_data.get('links', {}).get('url')
                     if image_url:
-                        uploaded_urls.append(image_url)
-            
-            if uploaded_urls:
-                # 获取当前内容
-                current_content = text_edit.toPlainText()
-                # 添加新上传的图片URL
-                new_content = current_content + ('\n' if current_content else '') + '\n'.join(uploaded_urls)
-                # 更新组件值和文本编辑框
-                component.set_value(field_name, new_content)
-                text_edit.setPlainText(new_content)
-                self.statusBar.showMessage(f'成功上传 {len(uploaded_urls)} 张图片')
+                        component.set_value(field_name, image_url)
+                        line_edit.setText(image_url)
+                        self.statusBar.showMessage('图片上传成功')
+                    else:
+                        QMessageBox.warning(self, '警告', '上传成功但未返回图片URL')
+                else:
+                    QMessageBox.warning(self, '警告', '上传失败: 无法获取图片数据')
             else:
-                QMessageBox.warning(self, '警告', '没有成功上传的图片')
-        except Exception as e:
-            QMessageBox.critical(self, '错误', f'上传失败: {str(e)}')
+                QMessageBox.warning(self, '警告', message)
+        
+        self.upload_worker.upload_completed.connect(on_upload_completed)
+        self.upload_worker.start()
+        
+        result = progress_dialog.exec_()
+        
+        if hasattr(self, 'upload_worker') and self.upload_worker and self.upload_worker.isRunning():
+            self.upload_worker.quit()
+            self.upload_worker.wait()
+            delattr(self, 'upload_worker')
     
     def upload_pictures_list(self, field_name: str, component: Any, pictures_list: QListWidget) -> None:
         file_paths, _ = QFileDialog.getOpenFileNames(self, '选择图片', '', '图片文件 (*.jpg *.jpeg *.png *.gif *.webp)')
         if not file_paths:
             return
         
-        try:
-            # 检查是否设置了API token
-            api_token = self.image_manager.load_image_api_token()
-            if not api_token:
-                QMessageBox.warning(self, '警告', '请先在图片菜单中设置API token')
+        progress_dialog = QDialog(self)
+        progress_dialog.setWindowTitle('上传中')
+        progress_dialog.setGeometry(300, 200, 300, 100)
+        progress_layout = QVBoxLayout(progress_dialog)
+        
+        progress_label = QLabel(f'正在上传 {len(file_paths)} 张图片，请稍候...')
+        progress_label.setAlignment(Qt.AlignCenter)
+        progress_layout.addWidget(progress_label)
+        
+        uploaded_count = 0
+        total_count = len(file_paths)
+        uploaded_urls = []
+        self.upload_workers = []
+        
+        def upload_next(index):
+            nonlocal uploaded_count
+            if index >= total_count:
+                if not progress_dialog.isHidden():
+                    progress_dialog.accept()
+                if uploaded_urls:
+                    for url in uploaded_urls:
+                        item = QListWidgetItem(url)
+                        pictures_list.addItem(item)
+                    self.statusBar.showMessage(f'成功上传 {len(uploaded_urls)} 张图片')
+                else:
+                    QMessageBox.warning(self, '警告', '没有成功上传的图片')
+                for worker in self.upload_workers:
+                    if worker and worker.isRunning():
+                        worker.quit()
+                        worker.wait()
+                delattr(self, 'upload_workers')
                 return
             
-            # 上传所有选择的图片
-            uploaded_urls = []
-            for file_path in file_paths:
-                # 使用ImageManager上传图片
-                image_data = self.image_manager.upload_image(file_path)
-                if image_data:
-                    image_url = image_data.get('links', {}).get('url')
-                    if image_url:
-                        uploaded_urls.append(image_url)
+            file_path = file_paths[index]
+            upload_worker = ImageUploadWorker(self.image_manager, file_path)
+            self.upload_workers.append(upload_worker)
             
-            if uploaded_urls:
-                # 添加到列表
-                for url in uploaded_urls:
-                    item = QListWidgetItem(url)
-                    pictures_list.addItem(item)
-                self.statusBar.showMessage(f'成功上传 {len(uploaded_urls)} 张图片')
-            else:
-                QMessageBox.warning(self, '警告', '没有成功上传的图片')
-        except Exception as e:
-            QMessageBox.critical(self, '错误', f'上传失败: {str(e)}')
+            def on_upload_completed(success, message, image_data):
+                nonlocal uploaded_count
+                if success:
+                    if image_data:
+                        image_url = image_data.get('links', {}).get('url')
+                        if image_url:
+                            uploaded_urls.append(image_url)
+                            uploaded_count += 1
+                upload_next(index + 1)
+            
+            upload_worker.upload_completed.connect(on_upload_completed)
+            upload_worker.start()
+        
+        upload_next(0)
+        
+        result = progress_dialog.exec_()
+        
+        if hasattr(self, 'upload_workers'):
+            for worker in self.upload_workers:
+                if worker and worker.isRunning():
+                    worker.quit()
+                    worker.wait()
+            delattr(self, 'upload_workers')
     
     def add_image_url(self, pictures_list: QListWidget) -> None:
-        # 弹出对话框让用户输入URL
         url, ok = QInputDialog.getText(self, '添加图片URL', '请输入图片URL:')
         if ok and url.strip():
             item = QListWidgetItem(url.strip())
             pictures_list.addItem(item)
-    
-    def save_picture_info(self, image_data: Dict[str, Any]) -> None:
-        save_dir = 'C:\\Users\\Administrator\\.pyhtml\\picturestemp'
-        os.makedirs(save_dir, exist_ok=True)
-        timestamp = int(time.time() * 1000)
-        file_name = f'picture_{timestamp}.json'
-        file_path = os.path.join(save_dir, file_name)
-        
-        with open(file_path, 'w', encoding='utf-8') as f:
-            json.dump(image_data, f, ensure_ascii=False, indent=2)
-        
-        print(f'图片信息已保存到: {file_path}')
     
     def import_component(self) -> None:
         file_dialog = QFileDialog()
@@ -1358,8 +1502,6 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
                 self.project = Project.load(file_path, self.component_loader)
                 self.refresh_page_components()
                 self.clear_properties_panel()
-                if hasattr(self.project, 'theme'):
-                    self.change_theme(self.project.theme)
                 self.statusBar.showMessage(f'已打开项目: {self.project.name}')
             except Exception as e:
                 QMessageBox.critical(self, '错误', f'无法打开项目: {str(e)}')
@@ -1373,8 +1515,6 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
             file_path = self.project.file_path
         
         try:
-            if self.theme_manager.current_theme:
-                self.project.theme = self.theme_manager.current_theme.name.lower().replace(' ', '_')
             self.project.save(file_path)
             self.statusBar.showMessage(f'已保存项目: {self.project.name}')
         except Exception as e:
@@ -1392,164 +1532,11 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
         self.preview_server.update_html(self.project)
         self.statusBar.showMessage('预览已更新')
     
-    def change_theme(self, theme_name: str) -> None:
-        if self.theme_manager.set_theme(theme_name):
-            self.apply_theme()
-            self.statusBar.showMessage(f'已切换到主题: {theme_name}')
-    
-    def open_theme_editor(self) -> None:
-        dialog = QDialog(self)
-        dialog.setWindowTitle('主题编辑器')
-        dialog.setGeometry(200, 200, 800, 600)
-        
-        main_layout = QVBoxLayout(dialog)
-        
-        info_layout = QHBoxLayout()
-        name_label = QLabel('主题名称:')
-        theme_name_edit = QLineEdit()
-        if self.theme_manager.current_theme:
-            theme_name_edit.setText(self.theme_manager.current_theme.name)
-        info_layout.addWidget(name_label)
-        info_layout.addWidget(theme_name_edit)
-        
-        desc_label = QLabel('描述:')
-        theme_desc_edit = QLineEdit()
-        if self.theme_manager.current_theme:
-            theme_desc_edit.setText(self.theme_manager.current_theme.description)
-        info_layout.addWidget(desc_label)
-        info_layout.addWidget(theme_desc_edit)
-        main_layout.addLayout(info_layout)
-        
-        color_group = QVBoxLayout()
-        color_group.addWidget(QLabel('颜色设置:'))
-        
-        color_grid = QHBoxLayout()
-        
-        color_edit_layout = QVBoxLayout()
-        color_buttons = {}
-        
-        if self.theme_manager.current_theme:
-            colors = self.theme_manager.current_theme.colors
-        else:
-            colors = DEFAULT_COLORS
-        
-        for color_name, color_value in colors.items():
-            color_row = QHBoxLayout()
-            display_name = COLOR_NAME_MAP.get(color_name, color_name)
-            color_row.addWidget(QLabel(display_name))
-            color_button = QPushButton()
-            color_button.setFixedWidth(40)
-            color_button.setStyleSheet(f'background-color: {color_value}; border: 1px solid {StyleConstants.BORDER_COLOR}; border-radius: 3px;')
-            color_button.clicked.connect(lambda checked, name=color_name, btn=color_button: self._change_theme_color_editor(name, btn))
-            color_row.addWidget(color_button)
-            color_edit_layout.addLayout(color_row)
-            color_buttons[color_name] = color_button
-        
-        color_grid.addLayout(color_edit_layout)
-        
-        font_layout = QVBoxLayout()
-        font_layout.addWidget(QLabel('字体设置:'))
-        
-        font_family_layout = QHBoxLayout()
-        font_family_layout.addWidget(QLabel('字体:'))
-        font_family_combo = QFontComboBox()
-        if self.theme_manager.current_theme:
-            font_family_combo.setCurrentFont(QFont(self.theme_manager.current_theme.fonts['family']))
-        font_family_layout.addWidget(font_family_combo)
-        font_layout.addLayout(font_family_layout)
-        
-        font_size_layout = QHBoxLayout()
-        font_size_layout.addWidget(QLabel('字号:'))
-        font_size_spin = QSpinBox()
-        font_size_spin.setRange(8, 24)
-        if self.theme_manager.current_theme:
-            font_size_spin.setValue(self.theme_manager.current_theme.fonts['size'])
-        font_size_layout.addWidget(font_size_spin)
-        font_layout.addLayout(font_size_layout)
-        
-        background_layout = QVBoxLayout()
-        background_layout.addWidget(QLabel('背景图片:'))
-        
-        background_image_layout = QHBoxLayout()
-        background_image_edit = QLineEdit()
-        if self.theme_manager.current_theme:
-            background_image_edit.setText(self.theme_manager.current_theme.background_image)
-        background_image_layout.addWidget(background_image_edit)
-        
-        background_image_button = QPushButton('选择图片')
-        background_image_button.clicked.connect(lambda: self._select_background_image_editor(background_image_edit))
-        background_image_layout.addWidget(background_image_button)
-        
-        background_layout.addLayout(background_image_layout)
-        font_layout.addLayout(background_layout)
-        
-        color_grid.addLayout(font_layout)
-        color_group.addLayout(color_grid)
-        main_layout.addLayout(color_group)
-        
-        button_layout = QHBoxLayout()
-        save_button = QPushButton('保存为新主题')
-        save_button.clicked.connect(lambda: self._save_custom_theme_editor(theme_name_edit, theme_desc_edit, font_family_combo, font_size_spin, background_image_edit, dialog))
-        cancel_button = QPushButton('取消')
-        cancel_button.clicked.connect(dialog.reject)
-        button_layout.addWidget(save_button)
-        button_layout.addWidget(cancel_button)
-        main_layout.addLayout(button_layout)
-        
-        dialog.exec_()
-    
-    def _change_theme_color_editor(self, color_name: str, button: QPushButton) -> None:
-        if self.theme_manager.current_theme:
-            current_color = self.theme_manager.current_theme.colors.get(color_name, '#000000')
-            display_name = COLOR_NAME_MAP.get(color_name, color_name)
-            color = QColorDialog.getColor(QColor(current_color), self, f'选择{display_name}颜色')
-            if color.isValid():
-                button.setStyleSheet(f'background-color: {color.name()}; border: 1px solid {StyleConstants.BORDER_COLOR}; border-radius: 3px;')
-                self.theme_manager.current_theme.colors[color_name] = color.name()
-                self.apply_theme()
-    
-    def _select_background_image_editor(self, edit_widget: QLineEdit) -> None:
-        file_path, _ = QFileDialog.getOpenFileName(self, '选择背景图片', '', '图片文件 (*.jpg *.jpeg *.png *.gif *.webp)')
-        if file_path:
-            edit_widget.setText(file_path)
-    
-    def _preview_theme_editor(self, font_combo: QFontComboBox, size_spin: QSpinBox, image_edit: QLineEdit) -> None:
-        if self.theme_manager.current_theme:
-            self.theme_manager.current_theme.fonts['family'] = font_combo.currentFont().family()
-            self.theme_manager.current_theme.fonts['size'] = size_spin.value()
-            self.theme_manager.current_theme.background_image = image_edit.text()
-            self.apply_theme()
-    
-    def _save_custom_theme_editor(self, name_edit: QLineEdit, desc_edit: QLineEdit, font_combo: QFontComboBox, size_spin: QSpinBox, image_edit: QLineEdit, dialog: QDialog) -> None:
-        theme_name = name_edit.text().strip()
-        if not theme_name:
-            QMessageBox.warning(self, '警告', '请输入主题名称')
-            return
-        
-        if self.theme_manager.current_theme:
-            theme = self.theme_manager.create_theme_from_current(theme_name, desc_edit.text())
-            theme.fonts['family'] = font_combo.currentFont().family()
-            theme.fonts['size'] = size_spin.value()
-            theme.background_image = image_edit.text()
-            
-            success = self.theme_manager.save_theme(theme)
-            
-            if success:
-                # 刷新主题列表
-                self._refresh_theme_menu()
-                QMessageBox.information(self, '成功', f'主题 "{theme_name}" 已保存')
-                dialog.accept()
-            else:
-                QMessageBox.warning(self, '警告', '保存主题失败，请检查权限设置')
-    
-    def resizeEvent(self, event: QEvent) -> None:
-        super().resizeEvent(event)
-    
     def paintEvent(self, event: QEvent) -> None:
         super().paintEvent(event)
         
-        if self.theme_manager.current_theme and self.theme_manager.current_theme.background_image:
-            current_path = self.theme_manager.current_theme.background_image
+        if self._background_image_path:
+            current_path = self._background_image_path
             
             if self._background_path_cache != current_path or self._background_pixmap_cache is None:
                 self._background_pixmap_cache = QPixmap(current_path)
@@ -2023,17 +2010,17 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
                 QMessageBox.warning(self, '提示', '请先在AI助手的API配置中设置API Key')
                 return
             
-            prompt_text = f"请优化以下组件的配置，使其更加美观和实用：\n\n" \
-                         f"组件类型: {component.display_name}\n" \
-                         f"当前配置: {component.values}\n\n" \
-                         f"请返回优化后的配置，只返回JSON格式，格式如下：\n" \
+            prompt_text = f"请优化以下组件的配置，使其更加美观和实用：\\n\\n" \
+                         f"组件类型: {component.display_name}\\n" \
+                         f"当前配置: {component.values}\\n\\n" \
+                         f"请返回优化后的配置，只返回JSON格式，格式如下：\\n" \
                          f'{{"values": {{...}}}}'
             
             user_requirement = user_requirement_edit.toPlainText().strip()
             
             combined_prompt = prompt_text
             if user_requirement:
-                combined_prompt += f"\n\n用户额外需求: {user_requirement}"
+                combined_prompt += f"\\n\\n用户额外需求: {user_requirement}"
             
             status_label.setText('状态: 优化中...')
             optimize_button.setEnabled(False)
@@ -2059,7 +2046,7 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
                     
                     reply = QMessageBox.question(
                         None, '优化完成', 
-                        '组件优化完成，是否满意？\n在浏览器输入http://localhost:8765/或刷新预览界面看效果\n不满意可以选择"否"回退到原始状态。',
+                        '组件优化完成，是否满意？\\n在浏览器输入http://localhost:8765/或刷新预览界面看效果\\n不满意可以选择"否"回退到原始状态。',
                         QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes
                     )
                     
@@ -2132,14 +2119,14 @@ class MainWindow(QMainWindow if HAS_PYQT else object):
             elif hasattr(event, 'success') and hasattr(event, 'project_path'):
                 if event.success:
                     self.statusBar.showMessage('部署成功!')
-                    message = f'Cloudflare Worker已成功部署!\n\n项目目录: {event.project_path}'
+                    message = f'Cloudflare Worker已成功部署!\\n\\n项目目录: {event.project_path}'
                     if hasattr(event, 'deployed_url') and event.deployed_url:
-                        message += f'\n\n部署地址: {event.deployed_url}'
+                        message += f'\\n\\n部署地址: {event.deployed_url}'
                         webbrowser.open(event.deployed_url)
                     QMessageBox.information(None, '成功', message)
                 else:
                     self.statusBar.showMessage('部署失败')
-                    QMessageBox.warning(None, '部署失败', f'Cloudflare Worker项目已创建，但部署失败。\n\n项目目录: {event.project_path}\n\n请查看部署日志了解详情。')
+                    QMessageBox.warning(None, '部署失败', f'Cloudflare Worker项目已创建，但部署失败。\\n\\n项目目录: {event.project_path}\\n\\n请查看部署日志了解详情。')
                 return True
         return super().event(event)
 
