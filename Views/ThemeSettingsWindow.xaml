@@ -1,0 +1,231 @@
+<Window x:Class="PyHTML.WPF.Views.ThemeSettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:PyHTML.WPF.ViewModels"
+        mc:Ignorable="d"
+        Title="主题设置"
+        Height="500"
+        Width="550"
+        MinHeight="450"
+        MinWidth="500"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        WindowStartupLocation="CenterOwner"
+        Style="{StaticResource Win11WindowStyle}">
+
+    <Window.DataContext>
+        <vm:ThemeSettingsViewModel/>
+    </Window.DataContext>
+
+    <Border Background="{StaticResource WindowBackgroundBrush}"
+            CornerRadius="12"
+            BorderBrush="{StaticResource BorderLightBrush}"
+            BorderThickness="1"
+            Effect="{StaticResource WindowShadow}">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Title Bar -->
+            <Border Grid.Row="0" 
+                    Style="{StaticResource Win11TitleBarStyle}"
+                    CornerRadius="12,12,0,0"
+                    MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="16,0">
+                        <TextBlock Text="&#xE771;"
+                                   FontFamily="Segoe MDL2 Assets"
+                                   FontSize="18"
+                                   Foreground="{StaticResource PrimaryBrush}"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,10,0"/>
+                        <TextBlock Text="主题设置"
+                                   FontSize="14"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+
+                    <Button Grid.Column="1"
+                            Content="&#xE711;"
+                            FontFamily="Segoe MDL2 Assets"
+                            Style="{StaticResource Win11ToolButtonStyle}"
+                            Width="46"
+                            Height="32"
+                            Click="CloseButton_Click"/>
+                </Grid>
+            </Border>
+
+            <!-- Content -->
+            <ScrollViewer Grid.Row="1" 
+                          Style="{StaticResource Win11ScrollViewerStyle}"
+                          Margin="24,16">
+                <StackPanel>
+                    <TextBlock Text="外观主题"
+                               FontSize="16"
+                               FontWeight="SemiBold"
+                               Foreground="{StaticResource TextPrimaryBrush}"
+                               Margin="0,0,0,16"/>
+
+                    <!-- Theme Selection -->
+                    <TextBlock Text="主题模式"
+                               FontWeight="SemiBold"
+                               Foreground="{StaticResource TextPrimaryBrush}"
+                               Margin="0,0,0,8"/>
+                    <ComboBox ItemsSource="{Binding AvailableThemes}"
+                              SelectedItem="{Binding SelectedTheme, Mode=TwoWay}"
+                              Style="{StaticResource Win11ComboBoxStyle}"
+                              Margin="0,0,0,16"/>
+
+                    <!-- Use System Theme -->
+                    <CheckBox IsChecked="{Binding UseSystemTheme, Mode=TwoWay}"
+                              Content="跟随系统主题"
+                              Foreground="{StaticResource TextPrimaryBrush}"
+                              FontSize="13"
+                              Margin="0,0,0,24"/>
+
+                    <!-- Primary Color -->
+                    <TextBlock Text="主题色"
+                               FontWeight="SemiBold"
+                               Foreground="{StaticResource TextPrimaryBrush}"
+                               Margin="0,0,0,12"/>
+                    <WrapPanel Margin="0,0,0,24">
+                        <Border Width="32"
+                                Height="32"
+                                CornerRadius="16"
+                                Background="#0078D4"
+                                BorderBrush="{StaticResource BorderMediumBrush}"
+                                BorderThickness="2"
+                                Margin="4"
+                                Cursor="Hand"
+                                MouseLeftButtonDown="ColorBorder_MouseLeftButtonDown"
+                                Tag="#0078D4"/>
+                        <Border Width="32"
+                                Height="32"
+                                CornerRadius="16"
+                                Background="#107C10"
+                                BorderBrush="{StaticResource BorderMediumBrush}"
+                                BorderThickness="2"
+                                Margin="4"
+                                Cursor="Hand"
+                                MouseLeftButtonDown="ColorBorder_MouseLeftButtonDown"
+                                Tag="#107C10"/>
+                        <Border Width="32"
+                                Height="32"
+                                CornerRadius="16"
+                                Background="#D83B01"
+                                BorderBrush="{StaticResource BorderMediumBrush}"
+                                BorderThickness="2"
+                                Margin="4"
+                                Cursor="Hand"
+                                MouseLeftButtonDown="ColorBorder_MouseLeftButtonDown"
+                                Tag="#D83B01"/>
+                        <Border Width="32"
+                                Height="32"
+                                CornerRadius="16"
+                                Background="#A80000"
+                                BorderBrush="{StaticResource BorderMediumBrush}"
+                                BorderThickness="2"
+                                Margin="4"
+                                Cursor="Hand"
+                                MouseLeftButtonDown="ColorBorder_MouseLeftButtonDown"
+                                Tag="#A80000"/>
+                        <Border Width="32"
+                                Height="32"
+                                CornerRadius="16"
+                                Background="#5C2D91"
+                                BorderBrush="{StaticResource BorderMediumBrush}"
+                                BorderThickness="2"
+                                Margin="4"
+                                Cursor="Hand"
+                                MouseLeftButtonDown="ColorBorder_MouseLeftButtonDown"
+                                Tag="#5C2D91"/>
+                        <Border Width="32"
+                                Height="32"
+                                CornerRadius="16"
+                                Background="#0063B1"
+                                BorderBrush="{StaticResource BorderMediumBrush}"
+                                BorderThickness="2"
+                                Margin="4"
+                                Cursor="Hand"
+                                MouseLeftButtonDown="ColorBorder_MouseLeftButtonDown"
+                                Tag="#0063B1"/>
+                    </WrapPanel>
+
+                    <!-- Effects -->
+                    <TextBlock Text="效果"
+                               FontSize="14"
+                               FontWeight="SemiBold"
+                               Foreground="{StaticResource TextPrimaryBrush}"
+                               Margin="0,0,0,12"/>
+                    <CheckBox IsChecked="{Binding EnableAnimations, Mode=TwoWay}"
+                              Content="启用动画效果"
+                              Foreground="{StaticResource TextPrimaryBrush}"
+                              FontSize="13"
+                              Margin="0,0,0,12"/>
+                    <CheckBox IsChecked="{Binding EnableTransparency, Mode=TwoWay}"
+                              Content="启用透明效果"
+                              Foreground="{StaticResource TextPrimaryBrush}"
+                              FontSize="13"
+                              Margin="0,0,0,24"/>
+
+                    <!-- Preview -->
+                    <Border Background="{StaticResource SurfaceBrush}"
+                            CornerRadius="8"
+                            BorderBrush="{StaticResource BorderLightBrush}"
+                            BorderThickness="1"
+                            Padding="24"
+                            Margin="0,0,0,16">
+                        <StackPanel>
+                            <TextBlock Text="预览"
+                                       FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                       Margin="0,0,0,12"/>
+                            <Button Content="主按钮"
+                                    Style="{StaticResource Win11PrimaryButtonStyle}"
+                                    Padding="20,10"
+                                    HorizontalAlignment="Left"
+                                    Margin="0,0,0,8"/>
+                            <Button Content="次按钮"
+                                    Style="{StaticResource Win11SecondaryButtonStyle}"
+                                    Padding="20,10"
+                                    HorizontalAlignment="Left"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- Buttons -->
+            <Border Grid.Row="2" 
+                    Background="{StaticResource SurfaceSecondaryBrush}"
+                    BorderBrush="{StaticResource BorderLightBrush}"
+                    BorderThickness="0,1,0,0"
+                    CornerRadius="0,0,12,12"
+                    Padding="24,16">
+                <StackPanel Orientation="Horizontal"
+                            HorizontalAlignment="Right">
+                    <Button Content="恢复默认"
+                            Style="{StaticResource Win11SecondaryButtonStyle}"
+                            Command="{Binding ResetToDefaultCommand}"
+                            Padding="20,10"/>
+                    <Button Content="应用"
+                            Style="{StaticResource Win11PrimaryButtonStyle}"
+                            Command="{Binding ApplyThemeCommand}"
+                            Padding="20,10"
+                            Margin="12,0,0,0"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

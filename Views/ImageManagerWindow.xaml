@@ -1,0 +1,375 @@
+<Window x:Class="PyHTML.WPF.Views.ImageManagerWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:PyHTML.WPF.ViewModels"
+        mc:Ignorable="d"
+        Title="图片管理"
+        Height="600"
+        Width="900"
+        MinHeight="500"
+        MinWidth="700"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        WindowStartupLocation="CenterOwner"
+        Style="{StaticResource Win11WindowStyle}">
+
+    <Window.DataContext>
+        <vm:ImageManagerViewModel/>
+    </Window.DataContext>
+
+    <Border Background="{StaticResource WindowBackgroundBrush}"
+            CornerRadius="12"
+            BorderBrush="{StaticResource BorderLightBrush}"
+            BorderThickness="1"
+            Effect="{StaticResource WindowShadow}">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Title Bar -->
+            <Border Grid.Row="0" 
+                    Style="{StaticResource Win11TitleBarStyle}"
+                    CornerRadius="12,12,0,0"
+                    MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="16,0">
+                        <TextBlock Text="&#xE91B;"
+                                   FontFamily="Segoe MDL2 Assets"
+                                   FontSize="18"
+                                   Foreground="{StaticResource PrimaryBrush}"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,10,0"/>
+                        <TextBlock Text="图片管理"
+                                   FontSize="14"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+
+                    <Button Grid.Column="1"
+                            Content="&#xE711;"
+                            FontFamily="Segoe MDL2 Assets"
+                            Style="{StaticResource Win11ToolButtonStyle}"
+                            Width="46"
+                            Height="32"
+                            Click="CloseButton_Click"/>
+                </Grid>
+            </Border>
+
+            <!-- Toolbar -->
+            <Border Grid.Row="1"
+                    Background="{StaticResource SurfaceBrush}"
+                    BorderBrush="{StaticResource BorderLightBrush}"
+                    BorderThickness="0,0,0,1"
+                    Padding="16,12">
+                <StackPanel Orientation="Horizontal">
+                    <Button Content="&#xE898; 上传图片"
+                            Style="{StaticResource Win11PrimaryButtonStyle}"
+                            Command="{Binding UploadImageCommand}"
+                            IsEnabled="{Binding IsUploading, Converter={StaticResource InverseBooleanConverter}}"
+                            Padding="16,8"
+                            FontSize="13"/>
+                    <Button Content="&#xE8E5; 批量上传"
+                            Style="{StaticResource Win11SecondaryButtonStyle}"
+                            Command="{Binding UploadImagesCommand}"
+                            IsEnabled="{Binding IsUploading, Converter={StaticResource InverseBooleanConverter}}"
+                            Padding="16,8"
+                            FontSize="13"
+                            Margin="12,0,0,0"/>
+                    <Button Content="&#xE72C; 刷新"
+                            Style="{StaticResource Win11SecondaryButtonStyle}"
+                            Command="{Binding RefreshCommand}"
+                            Padding="16,8"
+                            FontSize="13"
+                            Margin="12,0,0,0"/>
+                    <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}"
+                               Margin="16,0"
+                               Background="{StaticResource BorderLightBrush}"/>
+                    <Button Content="&#xE74D; 删除"
+                            Style="{StaticResource Win11SecondaryButtonStyle}"
+                            Command="{Binding DeleteImageCommand}"
+                            IsEnabled="{Binding SelectedImage, Converter={StaticResource NullToBooleanConverter}}"
+                            Padding="16,8"
+                            FontSize="13"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Content -->
+            <Grid Grid.Row="2">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="280"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Image List -->
+                <Border Grid.Column="0"
+                        Background="{StaticResource SurfaceBrush}"
+                        BorderBrush="{StaticResource BorderLightBrush}"
+                        BorderThickness="0,0,1,0">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- Progress -->
+                        <Border Grid.Row="0"
+                                Background="{StaticResource PrimaryLightBrush}"
+                                Padding="16,10"
+                                Visibility="{Binding IsUploading, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE768;"
+                                           FontFamily="Segoe MDL2 Assets"
+                                           Foreground="{StaticResource PrimaryBrush}"
+                                           Margin="0,0,8,0">
+                                    <TextBlock.RenderTransform>
+                                        <RotateTransform Angle="0"/>
+                                    </TextBlock.RenderTransform>
+                                </TextBlock>
+                                <TextBlock Text="{Binding UploadProgress}"
+                                           Foreground="{StaticResource PrimaryBrush}"
+                                           FontSize="13"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- List -->
+                        <ListBox Grid.Row="1"
+                                 ItemsSource="{Binding Images}"
+                                 SelectedItem="{Binding SelectedImage}"
+                                 Style="{StaticResource Win11ListBoxStyle}"
+                                 BorderThickness="0"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Padding="12"
+                                            Background="Transparent">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="60"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <!-- Thumbnail -->
+                                            <Border Grid.Column="0"
+                                                    Width="48"
+                                                    Height="48"
+                                                    CornerRadius="4"
+                                                    Background="{StaticResource SurfaceSecondaryBrush}"
+                                                    BorderBrush="{StaticResource BorderLightBrush}"
+                                                    BorderThickness="1">
+                                                <TextBlock Text="&#xE91B;"
+                                                           FontFamily="Segoe MDL2 Assets"
+                                                           FontSize="24"
+                                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center"/>
+                                            </Border>
+
+                                            <!-- Info -->
+                                            <StackPanel Grid.Column="1"
+                                                        Margin="12,0,0,0"
+                                                        VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding FileName}"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                                           TextTrimming="CharacterEllipsis"/>
+                                                <StackPanel Orientation="Horizontal"
+                                                            Margin="0,4,0,0">
+                                                    <TextBlock Text="{Binding FileSizeDisplay}"
+                                                               FontSize="12"
+                                                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                    <TextBlock Text=" | "
+                                                               FontSize="12"
+                                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                                               Margin="4,0"/>
+                                                    <TextBlock Text="{Binding UploadTimeDisplay}"
+                                                               FontSize="12"
+                                                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                </StackPanel>
+                                            </StackPanel>
+
+                                            <!-- URL indicator -->
+                                            <TextBlock Grid.Column="2"
+                                                       Text="&#xE71B;"
+                                                       FontFamily="Segoe MDL2 Assets"
+                                                       FontSize="16"
+                                                       Foreground="{StaticResource PrimaryBrush}"
+                                                       VerticalAlignment="Center"
+                                                       Margin="0,0,8,0"/>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </Grid>
+                </Border>
+
+                <!-- Preview Panel -->
+                <Border Grid.Column="1"
+                        Background="{StaticResource SurfaceSecondaryBrush}"
+                        Padding="16">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0"
+                                   Text="图片详情"
+                                   FontSize="14"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   Margin="0,0,0,16"/>
+
+                        <!-- Empty State -->
+                        <Border Grid.Row="1"
+                                Background="{StaticResource SurfaceBrush}"
+                                CornerRadius="8"
+                                BorderBrush="{StaticResource BorderLightBrush}"
+                                BorderThickness="1"
+                                Visibility="{Binding SelectedImage, Converter={StaticResource NullToVisibilityConverter}}">
+                            <StackPanel HorizontalAlignment="Center"
+                                        VerticalAlignment="Center">
+                                <TextBlock Text="&#xE91B;"
+                                           FontFamily="Segoe MDL2 Assets"
+                                           FontSize="48"
+                                           Foreground="{StaticResource TextDisabledBrush}"
+                                           HorizontalAlignment="Center"/>
+                                <TextBlock Text="选择图片查看详情"
+                                           FontSize="13"
+                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           Margin="0,12,0,0"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Details -->
+                        <StackPanel Grid.Row="1"
+                                    Visibility="{Binding SelectedImage, Converter={StaticResource NullToVisibilityConverter}, ConverterParameter=Invert}">
+                            <Border Background="{StaticResource SurfaceBrush}"
+                                    CornerRadius="8"
+                                    BorderBrush="{StaticResource BorderLightBrush}"
+                                    BorderThickness="1"
+                                    Height="160"
+                                    Margin="0,0,0,16">
+                                <TextBlock Text="&#xE91B;"
+                                           FontFamily="Segoe MDL2 Assets"
+                                           FontSize="64"
+                                           Foreground="{StaticResource PrimaryBrush}"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"/>
+                            </Border>
+
+                            <StackPanel Margin="0,0,0,12">
+                                <TextBlock Text="文件名"
+                                           FontSize="12"
+                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           Margin="0,0,0,4"/>
+                                <TextBlock Text="{Binding SelectedImage.FileName}"
+                                           FontSize="13"
+                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                           TextWrapping="Wrap"/>
+                            </StackPanel>
+
+                            <StackPanel Margin="0,0,0,12">
+                                <TextBlock Text="文件大小"
+                                           FontSize="12"
+                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           Margin="0,0,0,4"/>
+                                <TextBlock Text="{Binding SelectedImage.FileSizeDisplay}"
+                                           FontSize="13"
+                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                            </StackPanel>
+
+                            <StackPanel Margin="0,0,0,12">
+                                <TextBlock Text="上传时间"
+                                           FontSize="12"
+                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           Margin="0,0,0,4"/>
+                                <TextBlock Text="{Binding SelectedImage.UploadTimeDisplay}"
+                                           FontSize="13"
+                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                            </StackPanel>
+
+                            <StackPanel Margin="0,0,0,12">
+                                <TextBlock Text="URL"
+                                           FontSize="12"
+                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           Margin="0,0,0,4"/>
+                                <TextBox Text="{Binding SelectedImage.Url, Mode=OneWay}"
+                                         IsReadOnly="True"
+                                         Style="{StaticResource Win11TextBoxStyle}"
+                                         FontSize="11"
+                                         Padding="8,6"/>
+                            </StackPanel>
+                        </StackPanel>
+
+                        <!-- Actions -->
+                        <StackPanel Grid.Row="2"
+                                    Orientation="Horizontal"
+                                    HorizontalAlignment="Center"
+                                    Visibility="{Binding SelectedImage, Converter={StaticResource NullToVisibilityConverter}, ConverterParameter=Invert}">
+                            <Button Content="&#xE71B; 复制URL"
+                                    Style="{StaticResource Win11SecondaryButtonStyle}"
+                                    Command="{Binding CopyUrlCommand}"
+                                    Padding="12,8"
+                                    FontSize="12"/>
+                            <Button Content="&#xE8A5; Markdown"
+                                    Style="{StaticResource Win11SecondaryButtonStyle}"
+                                    Command="{Binding CopyMarkdownCommand}"
+                                    Padding="12,8"
+                                    FontSize="12"
+                                    Margin="8,0,0,0"/>
+                            <Button Content="&#xE774; 打开"
+                                    Style="{StaticResource Win11SecondaryButtonStyle}"
+                                    Command="{Binding OpenInBrowserCommand}"
+                                    Padding="12,8"
+                                    FontSize="12"
+                                    Margin="8,0,0,0"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <!-- Status Bar -->
+            <Border Grid.Row="3" 
+                    Background="{StaticResource SurfaceSecondaryBrush}"
+                    BorderBrush="{StaticResource BorderLightBrush}"
+                    BorderThickness="0,1,0,0"
+                    CornerRadius="0,0,12,12"
+                    Padding="16,10">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Grid.Column="0"
+                               Text="{Binding StatusMessage}"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               FontSize="12"
+                               VerticalAlignment="Center"/>
+
+                    <TextBlock Grid.Column="1"
+                               Text="{Binding TotalImages, StringFormat='共 {0} 张图片'}"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               FontSize="12"
+                               VerticalAlignment="Center"/>
+                </Grid>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

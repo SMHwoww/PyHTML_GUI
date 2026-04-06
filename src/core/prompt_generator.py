@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Any, List, Optional
 from .component import ComponentLoader, Component
 
 
@@ -118,7 +118,7 @@ class PromptGenerator:
 
 用户需求：'''
     
-    def parse_ai_response(self, response: str) -> Optional[Dict[str, Any]]:
+    def parse_ai_response(self, response: str) -> Optional[dict[str, Any]]:
         try:
             response = response.strip()
             

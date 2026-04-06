@@ -1,0 +1,183 @@
+<Window x:Class="PyHTML.WPF.Views.PreviewWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+        mc:Ignorable="d"
+        Title="预览"
+        Height="850"
+        Width="1300"
+        MinHeight="450"
+        MinWidth="700"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        WindowStartupLocation="CenterOwner"
+        Style="{StaticResource Win11WindowStyle}">
+
+    <!-- 主窗口背景 - 白色 + 圆角 -->
+    <Border Background="{StaticResource WindowBackgroundBrush}"
+            CornerRadius="12"
+            BorderBrush="{StaticResource BorderLightBrush}"
+            BorderThickness="1"
+            Effect="{StaticResource WindowShadow}">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Title Bar - Win11 风格 -->
+            <Border Grid.Row="0" 
+                    Style="{StaticResource Win11TitleBarStyle}"
+                    CornerRadius="12,12,0,0">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Icon and Title -->
+                    <StackPanel Grid.Column="0" 
+                                Orientation="Horizontal" 
+                                Margin="16,0">
+                        <Border Background="{StaticResource PrimaryBrush}"
+                                CornerRadius="6"
+                                Width="28"
+                                Height="28"
+                                Margin="0,0,12,0">
+                            <TextBlock Text="&#xE8A1;" 
+                                       FontFamily="Segoe MDL2 Assets"
+                                       Foreground="White"
+                                       FontSize="14"
+                                       VerticalAlignment="Center"
+                                       HorizontalAlignment="Center"/>
+                        </Border>
+                        <TextBlock Text="预览"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   VerticalAlignment="Center"
+                                   FontSize="14"
+                                   FontWeight="SemiBold"/>
+                    </StackPanel>
+
+                    <!-- Window Controls - Win11 风格 -->
+                    <StackPanel Grid.Column="2" 
+                                Orientation="Horizontal">
+                        <Button Content="&#xE921;"
+                                FontFamily="Segoe MDL2 Assets"
+                                Style="{StaticResource Win11ToolButtonStyle}"
+                                Foreground="{StaticResource TextPrimaryBrush}"
+                                Width="46"
+                                Height="32"
+                                FontSize="10"
+                                Click="MinimizeButton_Click"/>
+                        <Button Content="&#xE922;"
+                                FontFamily="Segoe MDL2 Assets"
+                                Style="{StaticResource Win11ToolButtonStyle}"
+                                Foreground="{StaticResource TextPrimaryBrush}"
+                                Width="46"
+                                Height="32"
+                                FontSize="10"
+                                Click="MaximizeButton_Click"/>
+                        <Button Content="&#xE711;"
+                                FontFamily="Segoe MDL2 Assets"
+                                Foreground="{StaticResource TextPrimaryBrush}"
+                                Width="46"
+                                Height="32"
+                                FontSize="10"
+                                Click="CloseButton_Click">
+                            <Button.Style>
+                                <Style BasedOn="{StaticResource Win11ToolButtonStyle}" TargetType="Button">
+                                    <Setter Property="Background" Value="Transparent"/>
+                                    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                                    <Style.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter Property="Background" Value="#E81123"/>
+                                            <Setter Property="Foreground" Value="White"/>
+                                        </Trigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- Toolbar - 卡片风格 -->
+            <Border Grid.Row="1" 
+                    Background="{StaticResource SurfaceBrush}"
+                    BorderBrush="{StaticResource BorderLightBrush}"
+                    BorderThickness="0,0,0,1"
+                    Padding="16,12">
+                <StackPanel Orientation="Horizontal">
+                    <Button Content="刷新"
+                            Style="{StaticResource Win11SecondaryButtonStyle}"
+                            Padding="16,8"
+                            Click="RefreshButton_Click"/>
+                    <Separator Margin="16,0" Background="{StaticResource BorderLightBrush}" Width="1"/>
+                    <ComboBox x:Name="ZoomComboBox"
+                              Width="100"
+                              SelectedIndex="2"
+                              SelectionChanged="ZoomComboBox_SelectionChanged"
+                              Style="{StaticResource Win11ComboBoxStyle}"
+                              Margin="0,0,16,0">
+                        <ComboBoxItem Content="50%"/>
+                        <ComboBoxItem Content="75%"/>
+                        <ComboBoxItem Content="100%"/>
+                        <ComboBoxItem Content="125%"/>
+                        <ComboBoxItem Content="150%"/>
+                        <ComboBoxItem Content="200%"/>
+                    </ComboBox>
+                    <Separator Margin="0,0,16,0" Background="{StaticResource BorderLightBrush}" Width="1"/>
+                    <Button Content="在浏览器中打开"
+                            Style="{StaticResource Win11SecondaryButtonStyle}"
+                            Padding="16,8"
+                            Click="OpenInBrowser_Click"/>
+                    <Button Content="导出HTML"
+                            Style="{StaticResource Win11PrimaryButtonStyle}"
+                            Margin="12,0,0,0"
+                            Padding="16,8"
+                            Click="ExportHtml_Click"/>
+                </StackPanel>
+            </Border>
+
+            <!-- WebView2 - 卡片样式 -->
+            <Border Grid.Row="2" 
+                    Background="{StaticResource SurfaceBrush}"
+                    BorderBrush="{StaticResource BorderLightBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Margin="16,12"
+                    Padding="1">
+                <wv2:WebView2 x:Name="WebView"
+                              DefaultBackgroundColor="White"/>
+            </Border>
+
+            <!-- Status Bar - Win11 风格 -->
+            <Border Grid.Row="3" 
+                    Background="{StaticResource SurfaceSecondaryBrush}"
+                    BorderBrush="{StaticResource BorderLightBrush}"
+                    BorderThickness="0,1,0,0"
+                    CornerRadius="0,0,12,12"
+                    Padding="16,10">
+                <Grid>
+                    <TextBlock x:Name="StatusText" 
+                               Text="就绪"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               FontSize="12"
+                               VerticalAlignment="Center"/>
+                    <TextBlock x:Name="UrlText" 
+                               Text=""
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               FontSize="12"
+                               HorizontalAlignment="Right"
+                               VerticalAlignment="Center"/>
+                </Grid>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

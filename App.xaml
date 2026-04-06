@@ -1,0 +1,25 @@
+<Application x:Class="PyHTML.WPF.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:converters="clr-namespace:PyHTML.WPF.Converters"
+             StartupUri="MainWindow.xaml"
+             xmlns:local="clr-namespace:PyHTML.WPF">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="Styles/DefaultTheme.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+            
+            <!-- Converters -->
+            <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
+            <converters:NullToVisibilityConverter x:Key="NullToVisibilityConverter"/>
+            <converters:NullToBooleanConverter x:Key="NullToBooleanConverter"/>
+            <converters:StringToVisibilityConverter x:Key="StringToVisibilityConverter"/>
+            <converters:BooleanToBrushConverter x:Key="BooleanToBrushConverter"/>
+            <converters:InverseBooleanConverter x:Key="InverseBooleanConverter"/>
+            <converters:RoleToBrushConverter x:Key="RoleToBrushConverter"/>
+            <converters:RoleToAlignmentConverter x:Key="RoleToAlignmentConverter"/>
+            <converters:RoleToDisplayConverter x:Key="RoleToDisplayConverter"/>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

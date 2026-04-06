@@ -2,7 +2,7 @@ import os
 import json
 import time
 import requests
-from typing import Dict, Any, Tuple, Optional
+from typing import Any, Tuple, Optional
 
 class ImageManager:
     def __init__(self):
@@ -88,7 +88,7 @@ class ImageManager:
         
         return temp_token
     
-    def upload_image(self, file_path: str) -> Optional[Dict[str, Any]]:
+    def upload_image(self, file_path: str) -> Optional[dict[str, Any]]:
         """上传图片"""
         temp_token = self.get_temp_token()
         if not temp_token:
@@ -121,7 +121,7 @@ class ImageManager:
         
         return None
     
-    def save_picture_info(self, image_data: Dict[str, Any]) -> None:
+    def save_picture_info(self, image_data: dict[str, Any]) -> None:
         """保存图片信息"""
         timestamp = int(time.time() * 1000)
         file_name = f'picture_{timestamp}.json'
@@ -146,7 +146,7 @@ class ImageManager:
                         pass
         return images
     
-    def delete_image(self, file_path: str, image_data: Optional[Dict[str, Any]] = None) -> bool:
+    def delete_image(self, file_path: str, image_data: Optional[dict[str, Any]] = None) -> bool:
         """删除图片信息（同时删除云端图片）"""
         delete_success = True
         

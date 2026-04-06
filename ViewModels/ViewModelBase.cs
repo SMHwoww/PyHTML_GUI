@@ -1,0 +1,72 @@
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using System;
+using System.Threading.Tasks;
+using System.Windows;
+
+namespace PyHTML.WPF.ViewModels
+{
+    public abstract class ViewModelBase : ObservableObject
+    {
+        private bool _isBusy;
+        private string _statusMessage = string.Empty;
+
+        public bool IsBusy
+        {
+            get => _isBusy;
+            set => SetProperty(ref _isBusy, value);
+        }
+
+        public string StatusMessage
+        {
+            get => _statusMessage;
+            set => SetProperty(ref _statusMessage, value);
+        }
+
+        protected async Task ExecuteAsync(Func<Task> action, string? loadingMessage = null)
+        {
+            if (IsBusy) return;
+
+            try
+            {
+                IsBusy = true;
+                if (loadingMessage != null)
+                    StatusMessage = loadingMessage;
+
+                await action();
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"错误: {ex.Message}";
+                MessageBox.Show(ex.Message, "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                IsBusy = false;
+            }
+        }
+
+        protected void Execute(Action action, string? loadingMessage = null)
+        {
+            if (IsBusy) return;
+
+            try
+            {
+                IsBusy = true;
+                if (loadingMessage != null)
+                    StatusMessage = loadingMessage;
+
+                action();
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"错误: {ex.Message}";
+                MessageBox.Show(ex.Message, "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                IsBusy = false;
+            }
+        }
+    }
+}

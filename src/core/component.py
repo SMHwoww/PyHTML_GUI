@@ -1,7 +1,7 @@
 import json
 import os
 from pathlib import Path
-from typing import Dict, Any, Optional, List
+from typing import Any, Optional
 
 
 class Component:
@@ -13,7 +13,7 @@ class Component:
         self.fields = self.config.get('fields', [])
         self.values = self._get_default_values()
         
-    def _load_config(self) -> Dict[str, Any]:
+    def _load_config(self) -> dict[str, Any]:
         config_path = self.component_dir / 'config.json'
         if not config_path.exists():
             raise FileNotFoundError(f'config.json not found in {self.component_dir}')
@@ -30,7 +30,7 @@ class Component:
             except Exception as e:
                 raise Exception(f'Failed to load config.json with both GBK and UTF-8 encoding: {e}')
     
-    def _get_default_values(self) -> Dict[str, Any]:
+    def _get_default_values(self) -> dict[str, Any]:
         values = {}
         for field in self.fields:
             values[field['name']] = field.get('default')
@@ -76,14 +76,14 @@ class Component:
                 print(f'Failed to read {file_path} with both GBK and UTF-8 encoding: {e}')
                 return ''
     
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             'component_name': self.name,
             'values': self.values
         }
     
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'Component':
+    def from_dict(cls, data: dict[str, Any]) -> 'Component':
         # 这个方法不再使用，因为我们现在使用 component_loader.create_instance
         raise NotImplementedError('Component.from_dict is no longer used. Use component_loader.create_instance instead.')
 
@@ -91,7 +91,7 @@ class Component:
 class ComponentLoader:
     def __init__(self, components_dir: Optional[str] = None):
         self.components_dir = Path(components_dir) if components_dir else None
-        self._components: Dict[str, Component] = {}
+        self._components: dict[str, Component] = {}
         
     def load_builtin_components(self):
         if self.components_dir and self.components_dir.exists():
@@ -115,7 +115,7 @@ class ComponentLoader:
     def get_component(self, name: str) -> Optional[Component]:
         return self._components.get(name)
     
-    def get_all_components(self) -> List[Component]:
+    def get_all_components(self) -> list[Component]:
         return list(self._components.values())
     
     def create_instance(self, name: str) -> Optional[Component]:
@@ -123,3 +123,7 @@ class ComponentLoader:
         if template:
             return Component(str(template.component_dir))
         return None
+    
+    def create_component(self, name: str) -> Optional[Component]:
+        """别名方法，与 create_instance 功能相同，用于兼容性"""
+        return self.create_instance(name)

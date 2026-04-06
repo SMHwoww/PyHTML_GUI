@@ -1,0 +1,193 @@
+<Window x:Class="PyHTML.WPF.Views.BackgroundSettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:PyHTML.WPF.ViewModels"
+        mc:Ignorable="d"
+        Title="背景图片设置"
+        Height="450"
+        Width="550"
+        MinHeight="400"
+        MinWidth="500"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        WindowStartupLocation="CenterOwner"
+        Style="{StaticResource Win11WindowStyle}">
+
+    <Window.DataContext>
+        <vm:BackgroundSettingsViewModel/>
+    </Window.DataContext>
+
+    <Border Background="{StaticResource WindowBackgroundBrush}"
+            CornerRadius="12"
+            BorderBrush="{StaticResource BorderLightBrush}"
+            BorderThickness="1"
+            Effect="{StaticResource WindowShadow}">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Title Bar -->
+            <Border Grid.Row="0" 
+                    Style="{StaticResource Win11TitleBarStyle}"
+                    CornerRadius="12,12,0,0"
+                    MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="16,0">
+                        <TextBlock Text="&#xE91B;"
+                                   FontFamily="Segoe MDL2 Assets"
+                                   FontSize="18"
+                                   Foreground="{StaticResource PrimaryBrush}"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,10,0"/>
+                        <TextBlock Text="背景图片设置"
+                                   FontSize="14"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+
+                    <Button Grid.Column="1"
+                            Content="&#xE711;"
+                            FontFamily="Segoe MDL2 Assets"
+                            Style="{StaticResource Win11ToolButtonStyle}"
+                            Width="46"
+                            Height="32"
+                            Click="CloseButton_Click"/>
+                </Grid>
+            </Border>
+
+            <!-- Content -->
+            <ScrollViewer Grid.Row="1" 
+                          Style="{StaticResource Win11ScrollViewerStyle}"
+                          Margin="24,16">
+                <StackPanel>
+                    <TextBlock Text="背景图片"
+                               FontSize="16"
+                               FontWeight="SemiBold"
+                               Foreground="{StaticResource TextPrimaryBrush}"
+                               Margin="0,0,0,16"/>
+
+                    <!-- Enable Background -->
+                    <CheckBox IsChecked="{Binding UseBackground, Mode=TwoWay}"
+                              Content="启用背景图片"
+                              Foreground="{StaticResource TextPrimaryBrush}"
+                              FontSize="13"
+                              Margin="0,0,0,16"/>
+
+                    <!-- Image Path -->
+                    <TextBlock Text="图片路径"
+                               FontWeight="SemiBold"
+                               Foreground="{StaticResource TextPrimaryBrush}"
+                               Margin="0,0,0,8"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBox Grid.Column="0"
+                                 Text="{Binding BackgroundImagePath, Mode=TwoWay}"
+                                 Style="{StaticResource Win11TextBoxStyle}"
+                                 IsReadOnly="True"/>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                            <Button Content="浏览..."
+                                    Style="{StaticResource Win11SecondaryButtonStyle}"
+                                    Command="{Binding BrowseImageCommand}"
+                                    Padding="16,8"
+                                    Margin="8,0,0,0"/>
+                            <Button Content="清除"
+                                    Style="{StaticResource Win11SecondaryButtonStyle}"
+                                    Command="{Binding ClearImageCommand}"
+                                    Padding="16,8"
+                                    Margin="8,0,0,0"/>
+                        </StackPanel>
+                    </Grid>
+                    <TextBlock Text="选择要作为背景的图片文件"
+                               FontSize="12"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               Margin="0,4,0,24"/>
+
+                    <!-- Opacity -->
+                    <TextBlock Text="不透明度"
+                               FontWeight="SemiBold"
+                               Foreground="{StaticResource TextPrimaryBrush}"
+                               Margin="0,0,0,8"/>
+                    <Slider Value="{Binding BackgroundOpacity, Mode=TwoWay}"
+                            Minimum="0.1"
+                            Maximum="1.0"
+                            TickFrequency="0.1"
+                            IsSnapToTickEnabled="True"/>
+                    <TextBlock Text="{Binding BackgroundOpacity, StringFormat='{}{0:P0}'}"
+                               FontSize="12"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               Margin="0,4,0,24"/>
+
+                    <!-- Repeat Mode -->
+                    <TextBlock Text="背景重复"
+                               FontWeight="SemiBold"
+                               Foreground="{StaticResource TextPrimaryBrush}"
+                               Margin="0,0,0,8"/>
+                    <ComboBox ItemsSource="{Binding BackgroundRepeatOptions}"
+                              SelectedItem="{Binding BackgroundRepeat, Mode=TwoWay}"
+                              Style="{StaticResource Win11ComboBoxStyle}"/>
+                    <TextBlock Text="no-repeat: 不重复 | repeat: 重复 | repeat-x: 水平重复 | repeat-y: 垂直重复"
+                               FontSize="12"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               Margin="0,4,0,24"/>
+
+                    <!-- Position -->
+                    <TextBlock Text="背景位置"
+                               FontWeight="SemiBold"
+                               Foreground="{StaticResource TextPrimaryBrush}"
+                               Margin="0,0,0,8"/>
+                    <ComboBox ItemsSource="{Binding BackgroundPositionOptions}"
+                              SelectedItem="{Binding BackgroundPosition, Mode=TwoWay}"
+                              Style="{StaticResource Win11ComboBoxStyle}"/>
+                    <TextBlock Text="设置背景图片在页面中的位置"
+                               FontSize="12"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               Margin="0,4,0,24"/>
+
+                    <!-- Size Mode -->
+                    <TextBlock Text="显示模式"
+                               FontWeight="SemiBold"
+                               Foreground="{StaticResource TextPrimaryBrush}"
+                               Margin="0,0,0,8"/>
+                    <ComboBox ItemsSource="{Binding BackgroundSizeOptions}"
+                              SelectedItem="{Binding BackgroundSize, Mode=TwoWay}"
+                              Style="{StaticResource Win11ComboBoxStyle}"/>
+                    <TextBlock Text="cover: 覆盖整个区域 | contain: 完整显示 | auto: 原始大小"
+                               FontSize="12"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               Margin="0,4,0,0"/>
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- Buttons -->
+            <Border Grid.Row="2" 
+                    Background="{StaticResource SurfaceSecondaryBrush}"
+                    BorderBrush="{StaticResource BorderLightBrush}"
+                    BorderThickness="0,1,0,0"
+                    CornerRadius="0,0,12,12"
+                    Padding="24,16">
+                <StackPanel Orientation="Horizontal"
+                            HorizontalAlignment="Right">
+                    <Button Content="保存设置"
+                            Style="{StaticResource Win11PrimaryButtonStyle}"
+                            Command="{Binding SaveSettingsCommand}"
+                            Padding="24,10"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

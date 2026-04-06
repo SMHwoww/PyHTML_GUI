@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Any
 from .component import Component
 
 
@@ -42,7 +42,7 @@ class Project:
             return self.components[index]
         return None
     
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             'name': self.name,
             'title': self.title,
@@ -52,7 +52,7 @@ class Project:
         }
     
     @classmethod
-    def from_dict(cls, data: Dict[str, Any], component_loader=None) -> 'Project':
+    def from_dict(cls, data: dict[str, Any], component_loader=None) -> 'Project':
         project = cls(data.get('name', 'Untitled'))
         project.title = data.get('title', project.name)
         project.head_config = data.get('head_config', {

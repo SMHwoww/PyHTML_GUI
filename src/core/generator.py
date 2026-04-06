@@ -29,7 +29,7 @@ class HTMLGenerator:
             result = result.replace(f'{{{{{key}}}}}', str(value))
         return result
     
-    def generate_html(self, components: List[Component], title: str = 'pyHTML Page', head_config: Optional[Dict] = None) -> str:
+    def generate_html(self, components: List[Component], title: str = 'pyHTML Page', head_config: Optional[dict] = None) -> str:
         all_styles = []
         all_scripts = []
         all_html = []
@@ -126,7 +126,7 @@ class HTMLGenerator:
         
         return '\n'.join(html_parts)
     
-    def save_html(self, components: List[Component], output_path: str, title: str = 'pyHTML Page', head_config: Optional[Dict] = None):
+    def save_html(self, components: List[Component], output_path: str, title: str = 'pyHTML Page', head_config: Optional[dict] = None):
         html_content = self.generate_html(components, title, head_config)
         output_file = Path(output_path)
         try:
